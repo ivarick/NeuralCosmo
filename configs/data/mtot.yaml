@@ -1,0 +1,70 @@
+# ---------------------------------------------------------------------------
+# Phase-A data configuration: 2D total-matter maps, Latin-Hypercube set, z=0.
+# Plan reference: sections 7, 12, 22.
+#
+# File names below are the names as they exist in the local archive. They differ
+# from the names quoted in the plan (params_LH_<suite>.txt) because that is how
+# the files were delivered; the manifest records reality rather than renaming
+# the user's archive.
+#
+# The archive ROOT is never stored here. It resolves from CAMELS_DATA_ROOT.
+# ---------------------------------------------------------------------------
+
+dataset: CAMELS_CMD
+set: LH
+field: Mtot
+redshift: 0.0
+
+# Every CAMELS simulation is rendered as this many 2D maps. The maps share one
+# parameter vector, which is why splits must be at simulation level (section 16).
+maps_per_simulation: 15
+
+expected:
+  maps_shape: [15000, 256, 256]
+  maps_dtype: float32
+  params_shape: [1000, 6]
+  n_simulations: 1000
+  # Verified against the local archive on 2026-08-24:
+  map_file_bytes: 3932160128   # 15000*256*256*4 + 128-byte .npy header
+
+# Column layout of the parameter files. Columns 2-5 are astrophysical feedback
+# parameters. They are NUISANCE variables, never cross-suite targets: the plan
+# (section 1.2) warns that identically named parameters mean different things in
+# different suites.
+param_columns:
+  omega_m: 0
+  sigma8: 1
+  a_sn1: 2
+  a_agn1: 3
+  a_sn2: 4
+  a_agn2: 5
+
+targets:
+  names: [omega_m, sigma8]
+  # Fixed design ranges of the Latin hypercube, NOT sample statistics.
+  # Using design ranges leaks no empirical target-suite information (section 22).
+  scaling: fixed_lh_range
+  ranges:
+    omega_m: [0.1, 0.5]
+    sigma8: [0.6, 1.0]
+  # Validation tolerance: observed extremes are 0.1002/0.4998 and 0.6002/0.9998,
+  # so do not hard-fail on small deviations from the nominal bounds (section 12).
+  range_tolerance: 0.01
+
+suites:
+  IllustrisTNG:
+    map_file: "Maps_Mtot_IllustrisTNG_LH_z=0.00.npy"
+    param_file: "IllustrisTNG LH parameters.txt"
+  SIMBA:
+    map_file: "Maps_Mtot_SIMBA_LH_z=0.00.npy"
+    param_file: "SIMBA LH parameters.txt"
+  Astrid:
+    map_file: "Maps_Mtot_Astrid_LH_z=0.00.npy"
+    param_file: "Astrid LH parameters.txt"
+
+# Role assignment for the strict domain-generalization protocol (sections 18, 19).
+# Astrid is SEALED: it may be validated for file integrity, but must not inform
+# any modelling decision until the configuration is frozen and committed.
+roles:
+  development_suites: [IllustrisTNG, SIMBA]
+  sealed_target_suites: [Astrid]

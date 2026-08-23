@@ -1,0 +1,15 @@
+# Normalise line endings so the repo is identical on Windows and Linux.
+* text=auto eol=lf
+
+# The plan document is the project's specification; keep it diffable.
+*.md text eol=lf
+*.py text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+
+# Never let Git mangle binary scientific data if one ever slips past .gitignore.
+*.npy binary
+*.npz binary
+*.hdf5 binary
+*.pt binary
+*.pth binary

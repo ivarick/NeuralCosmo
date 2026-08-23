@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------
+# NeuralCosmos .gitignore
+# Plan reference: section 101.
+#
+# HARD RULE (plan section 9): the Git repository must never contain raw CAMELS
+# maps. A single Mtot LH file is ~3.9 GB; the three-suite set is ~11.8 GB.
+# ---------------------------------------------------------------------------
+
+# --- Raw scientific data -----------------------------------------------------
+# Leading slash anchors these to the repo root. An unanchored "data/" would also
+# match configs/data/ and src/neuralcosmos/data/ and silently drop source files.
+/data/
+/datasets/
+*.npy
+*.npz
+*.hdf5
+*.h5
+*.fits
+
+# --- Model weights and tensors -----------------------------------------------
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# --- Run artefacts -----------------------------------------------------------
+outputs/runs/
+outputs/checkpoints/
+outputs/predictions/
+outputs/embeddings/
+# outputs/metrics/ is intentionally NOT ignored: small JSON metric files are
+# the provenance trail behind every table in the paper and should be tracked.
+
+# --- Secrets and machine-local configuration ---------------------------------
+.env
+.env.local
+*.token
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Notebooks ---------------------------------------------------------------
+.ipynb_checkpoints/
+
+# --- Editors and OS ----------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
