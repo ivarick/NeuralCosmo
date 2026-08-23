@@ -1,0 +1,361 @@
+{
+  "ok": true,
+  "suites": [
+    {
+      "suite": "IllustrisTNG",
+      "ok": true,
+      "info": {
+        "map_bytes": 3932160128,
+        "maps_shape": [
+          15000,
+          256,
+          256
+        ],
+        "maps_dtype": "float32",
+        "params_shape": [
+          1000,
+          6
+        ],
+        "observed_target_ranges": {
+          "omega_m": [
+            0.1002,
+            0.4998
+          ],
+          "sigma8": [
+            0.6002,
+            0.9998
+          ]
+        }
+      },
+      "pixel_stats": {
+        "count": 983040000,
+        "min": 4665044480.0,
+        "max": 2851799228743680.0,
+        "mean": 416324947133.79626,
+        "std": 3641477811213.701,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_nonpositive": 0,
+        "n_zero": 0
+      },
+      "checks": [
+        {
+          "name": "map_file_exists",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "E:\\universeinfrencedata\\Maps_Mtot_IllustrisTNG_LH_z=0.00.npy"
+        },
+        {
+          "name": "param_file_exists",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "E:\\universeinfrencedata\\IllustrisTNG LH parameters.txt"
+        },
+        {
+          "name": "map_byte_size",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "3,932,160,128 bytes (expected 3,932,160,128)"
+        },
+        {
+          "name": "maps_shape",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "(15000, 256, 256) (expected (15000, 256, 256))"
+        },
+        {
+          "name": "maps_dtype",
+          "passed": true,
+          "severity": "WARN",
+          "message": "float32 (expected float32)"
+        },
+        {
+          "name": "params_shape",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "(1000, 6) (expected (1000, 6))"
+        },
+        {
+          "name": "params_finite",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "all parameter values finite"
+        },
+        {
+          "name": "map_simulation_mapping",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "15000 maps == 1000 simulations x 15 maps/sim"
+        },
+        {
+          "name": "range_omega_m",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "[0.10020, 0.49980] within [0.1, 0.5] +/- 0.01"
+        },
+        {
+          "name": "range_sigma8",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "[0.60020, 0.99980] within [0.6, 1.0] +/- 0.01"
+        },
+        {
+          "name": "no_nan",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "0 NaN"
+        },
+        {
+          "name": "no_inf",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "0 Inf"
+        },
+        {
+          "name": "strictly_positive",
+          "passed": true,
+          "severity": "WARN",
+          "message": "min = 4.66504e+09; log(x) is safe"
+        }
+      ]
+    },
+    {
+      "suite": "SIMBA",
+      "ok": true,
+      "info": {
+        "map_bytes": 3932160128,
+        "maps_shape": [
+          15000,
+          256,
+          256
+        ],
+        "maps_dtype": "float32",
+        "params_shape": [
+          1000,
+          6
+        ],
+        "observed_target_ranges": {
+          "omega_m": [
+            0.1002,
+            0.4998
+          ],
+          "sigma8": [
+            0.6002,
+            0.9998
+          ]
+        }
+      },
+      "pixel_stats": {
+        "count": 983040000,
+        "min": 5227614208.0,
+        "max": 4203805541400576.0,
+        "mean": 416324145716.4602,
+        "std": 3637954698692.756,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_nonpositive": 0,
+        "n_zero": 0
+      },
+      "checks": [
+        {
+          "name": "map_file_exists",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "E:\\universeinfrencedata\\Maps_Mtot_SIMBA_LH_z=0.00.npy"
+        },
+        {
+          "name": "param_file_exists",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "E:\\universeinfrencedata\\SIMBA LH parameters.txt"
+        },
+        {
+          "name": "map_byte_size",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "3,932,160,128 bytes (expected 3,932,160,128)"
+        },
+        {
+          "name": "maps_shape",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "(15000, 256, 256) (expected (15000, 256, 256))"
+        },
+        {
+          "name": "maps_dtype",
+          "passed": true,
+          "severity": "WARN",
+          "message": "float32 (expected float32)"
+        },
+        {
+          "name": "params_shape",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "(1000, 6) (expected (1000, 6))"
+        },
+        {
+          "name": "params_finite",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "all parameter values finite"
+        },
+        {
+          "name": "map_simulation_mapping",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "15000 maps == 1000 simulations x 15 maps/sim"
+        },
+        {
+          "name": "range_omega_m",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "[0.10020, 0.49980] within [0.1, 0.5] +/- 0.01"
+        },
+        {
+          "name": "range_sigma8",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "[0.60020, 0.99980] within [0.6, 1.0] +/- 0.01"
+        },
+        {
+          "name": "no_nan",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "0 NaN"
+        },
+        {
+          "name": "no_inf",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "0 Inf"
+        },
+        {
+          "name": "strictly_positive",
+          "passed": true,
+          "severity": "WARN",
+          "message": "min = 5.22761e+09; log(x) is safe"
+        }
+      ]
+    },
+    {
+      "suite": "Astrid",
+      "ok": true,
+      "info": {
+        "map_bytes": 3932160128,
+        "maps_shape": [
+          15000,
+          256,
+          256
+        ],
+        "maps_dtype": "float32",
+        "params_shape": [
+          1000,
+          6
+        ],
+        "observed_target_ranges": {
+          "omega_m": [
+            0.1002,
+            0.4998
+          ],
+          "sigma8": [
+            0.6002,
+            0.9998
+          ]
+        }
+      },
+      "pixel_stats": {
+        "count": 983040000,
+        "min": 5415840768.0,
+        "max": 2864410058031104.0,
+        "mean": 416306661646.7337,
+        "std": 3678785362958.1494,
+        "n_nan": 0,
+        "n_inf": 0,
+        "n_nonpositive": 0,
+        "n_zero": 0
+      },
+      "checks": [
+        {
+          "name": "map_file_exists",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "E:\\universeinfrencedata\\Maps_Mtot_Astrid_LH_z=0.00.npy"
+        },
+        {
+          "name": "param_file_exists",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "E:\\universeinfrencedata\\Astrid LH parameters.txt"
+        },
+        {
+          "name": "map_byte_size",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "3,932,160,128 bytes (expected 3,932,160,128)"
+        },
+        {
+          "name": "maps_shape",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "(15000, 256, 256) (expected (15000, 256, 256))"
+        },
+        {
+          "name": "maps_dtype",
+          "passed": true,
+          "severity": "WARN",
+          "message": "float32 (expected float32)"
+        },
+        {
+          "name": "params_shape",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "(1000, 6) (expected (1000, 6))"
+        },
+        {
+          "name": "params_finite",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "all parameter values finite"
+        },
+        {
+          "name": "map_simulation_mapping",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "15000 maps == 1000 simulations x 15 maps/sim"
+        },
+        {
+          "name": "range_omega_m",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "[0.10020, 0.49980] within [0.1, 0.5] +/- 0.01"
+        },
+        {
+          "name": "range_sigma8",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "[0.60020, 0.99980] within [0.6, 1.0] +/- 0.01"
+        },
+        {
+          "name": "no_nan",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "0 NaN"
+        },
+        {
+          "name": "no_inf",
+          "passed": true,
+          "severity": "ERROR",
+          "message": "0 Inf"
+        },
+        {
+          "name": "strictly_positive",
+          "passed": true,
+          "severity": "WARN",
+          "message": "min = 5.41584e+09; log(x) is safe"
+        }
+      ]
+    }
+  ],
+  "quick_mode": false,
+  "elapsed_seconds": 338.9
+}

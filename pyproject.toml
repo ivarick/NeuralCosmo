@@ -47,7 +47,7 @@ viz = [
 ]
 
 [project.urls]
-Repository = "https://github.com/ivarick/NeuralCosmos"
+Repository = "https://github.com/ivarick/NeuralCosmo"
 
 [tool.setuptools.packages.find]
 where = ["src"]

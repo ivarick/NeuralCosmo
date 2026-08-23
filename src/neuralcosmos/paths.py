@@ -86,8 +86,8 @@ def resolve_data_root(override: str | os.PathLike[str] | None = None) -> Path:
             raise DataRootNotFound(
                 f"No CAMELS data root configured. Set the {_ENV_VAR} environment "
                 f"variable or pass an explicit path.\n"
-                f"  PowerShell:  $env:{_ENV_VAR} = 'E:\universeinfrencedata'\n"
-                f"  bash:        export {_ENV_VAR}=/mnt/e/universeinfrencedata"
+                f"  PowerShell:  $env:{_ENV_VAR} = " + r"'E:\CAMELS_CMD'" + "\n"
+                f"  bash:        export {_ENV_VAR}=/mnt/e/CAMELS_CMD"
             )
         candidate = Path(env_value).expanduser()
         source = f"${_ENV_VAR}"
