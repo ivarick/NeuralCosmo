@@ -1,0 +1,256 @@
+"""Memory-mapped CAMELS map dataset.
+
+Plan reference: sections 14, 15, 20, 22, 23, 61.
+
+DESIGN NOTES
+------------
+1. Memory mapping (section 14). A 3.9 GB ``.npy`` is never loaded whole. Each
+   ``__getitem__`` reads one 256x256 window. Parameter tables are tiny
+   (1000 x 6) and are held in RAM.
+
+2. Lazy per-worker mmap handles. ``np.memmap`` objects cannot be pickled, and
+   on Windows ``DataLoader`` workers are spawned rather than forked, so any
+   handle opened in the parent would either fail to pickle or be silently
+   invalid in the child. Handles are therefore opened on first use *inside*
+   whichever process is doing the reading, and cached per process.
+
+3. Normalization is never inferred. The normalizer must be passed in
+   explicitly, and it carries a provenance string describing exactly which
+   simulations produced it. There is deliberately no "compute statistics from
+   whatever data I was given" path, because on a target-suite dataset that
+   would silently violate the DG-strict protocol of section 20.2.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Sequence
+
+import numpy as np
+
+from .splits import maps_for_simulations
+from .targets import TargetScaler
+
+__all__ = [
+    "LogNormalizer",
+    "SuiteSource",
+    "CAMELSMapDataset",
+    "dihedral_transform",
+]
+
+
+@dataclass(frozen=True)
+class LogNormalizer:
+    """Standardisation applied in log space.
+
+    ``provenance`` is not decoration. Section 67 asks for methodological
+    discipline to be executable; recording which simulations produced these two
+    numbers is what lets a protocol check verify that no target-suite data
+    contributed to them.
+    """
+
+    mean: float
+    std: float
+    provenance: str
+
+    def __post_init__(self) -> None:
+        if not np.isfinite(self.mean) or not np.isfinite(self.std):
+            raise ValueError(f"Non-finite normalizer: mean={self.mean} std={self.std}")
+        if self.std <= 0:
+            raise ValueError(f"Normalizer std must be positive, got {self.std}")
+        if not self.provenance:
+            raise ValueError(
+                "LogNormalizer requires a provenance string naming the simulations "
+                "its statistics were computed from (section 20.2)."
+            )
+
+    def apply(self, x: np.ndarray) -> np.ndarray:
+        return (x - self.mean) / self.std
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"mean": self.mean, "std": self.std, "provenance": self.provenance}
+
+
+def dihedral_transform(img: np.ndarray, k: int) -> np.ndarray:
+    """Apply one of the 8 symmetries of the square (the dihedral group D4).
+
+    ``k`` in 0..7: ``k % 4`` quarter turns, then a horizontal flip if ``k >= 4``.
+
+    Section 23 permits flips and 90-degree rotations for these scalar physical
+    fields, and forbids photographic augmentations such as colour jitter. The
+    plan also asks that symmetry augmentation be *compared against* no
+    augmentation before being adopted, so this is available but off by default.
+    """
+    if not 0 <= k < 8:
+        raise ValueError(f"k must be in 0..7, got {k}")
+    out = np.rot90(img, k % 4)
+    if k >= 4:
+        out = np.fliplr(out)
+    # rot90/fliplr return views with negative strides; torch cannot consume those.
+    return np.ascontiguousarray(out)
+
+
+@dataclass
+class SuiteSource:
+    """One suite's contribution to a dataset."""
+
+    suite: str
+    suite_id: int
+    map_path: Path
+    params: np.ndarray           # (n_simulations, 6) in physical units
+    map_indices: np.ndarray      # global map indices belonging to this split
+    maps_per_simulation: int
+    _handle: Any = field(default=None, init=False, repr=False)
+    _pid: int | None = field(default=None, init=False, repr=False)
+
+    def maps(self) -> np.ndarray:
+        """Return this suite's memory-mapped array, opening it if needed.
+
+        The handle is re-opened when the process ID changes, which is what makes
+        this safe across spawned DataLoader workers.
+        """
+        pid = os.getpid()
+        if self._handle is None or self._pid != pid:
+            self._handle = np.load(self.map_path, mmap_mode="r")
+            self._pid = pid
+        return self._handle
+
+    def __getstate__(self) -> dict[str, Any]:
+        # Drop the unpicklable mmap handle before crossing a process boundary.
+        state = self.__dict__.copy()
+        state["_handle"] = None
+        state["_pid"] = None
+        return state
+
+
+class CAMELSMapDataset:
+    """A map-level dataset over one or more suites.
+
+    Yields the sample dictionary required by section 15. ``simulation_id`` is
+    always included: it is needed for leakage checks, grouped evaluation and
+    simulation-level bootstrap intervals (section 57), and must never be
+    dropped for convenience.
+    """
+
+    def __init__(
+        self,
+        sources: Sequence[SuiteSource],
+        target_scaler: TargetScaler,
+        param_columns: dict[str, int],
+        normalizer: LogNormalizer | None = None,
+        log_transform: bool = True,
+        augment: bool = False,
+        augment_seed: int = 0,
+    ) -> None:
+        if not sources:
+            raise ValueError("CAMELSMapDataset requires at least one SuiteSource")
+
+        self.sources = list(sources)
+        self.target_scaler = target_scaler
+        self.param_columns = dict(param_columns)
+        self.normalizer = normalizer
+        self.log_transform = log_transform
+        self.augment = augment
+        self.augment_seed = augment_seed
+
+        self._target_cols = np.array(
+            [self.param_columns[n] for n in target_scaler.names], dtype=np.int64
+        )
+
+        # Flat index -> (source position, position within that source).
+        lengths = [len(s.map_indices) for s in self.sources]
+        self._offsets = np.cumsum([0] + lengths)
+        self._length = int(self._offsets[-1])
+
+        self._rng: np.random.Generator | None = None
+        self._rng_pid: int | None = None
+
+    # -- introspection -----------------------------------------------------
+
+    def __len__(self) -> int:
+        return self._length
+
+    @property
+    def suites(self) -> list[str]:
+        return [s.suite for s in self.sources]
+
+    def simulation_ids(self) -> np.ndarray:
+        """Simulation ID of every sample, in dataset order.
+
+        Used by the bootstrap (section 57), which must resample simulations
+        rather than maps because 15 maps of one simulation are correlated.
+        """
+        out = []
+        for s in self.sources:
+            out.append(s.map_indices // s.maps_per_simulation)
+        return np.concatenate(out) if out else np.empty(0, dtype=np.int64)
+
+    def suite_ids(self) -> np.ndarray:
+        return np.concatenate(
+            [np.full(len(s.map_indices), s.suite_id, dtype=np.int64) for s in self.sources]
+        )
+
+    def targets_physical(self) -> np.ndarray:
+        """All targets in physical units, in dataset order."""
+        out = []
+        for s in self.sources:
+            sims = s.map_indices // s.maps_per_simulation
+            out.append(s.params[np.ix_(sims, self._target_cols)])
+        return np.concatenate(out, axis=0)
+
+    # -- sampling ----------------------------------------------------------
+
+    def _rng_for_worker(self) -> np.random.Generator:
+        pid = os.getpid()
+        if self._rng is None or self._rng_pid != pid:
+            # Mixing the PID keeps workers from drawing identical augmentations
+            # while remaining reproducible for a fixed worker layout.
+            self._rng = np.random.default_rng((self.augment_seed, pid))
+            self._rng_pid = pid
+        return self._rng
+
+    def _locate(self, index: int) -> tuple[SuiteSource, int]:
+        if index < 0:
+            index += self._length
+        if not 0 <= index < self._length:
+            raise IndexError(f"index {index} out of range for dataset of length {self._length}")
+        pos = int(np.searchsorted(self._offsets, index, side="right") - 1)
+        return self.sources[pos], index - int(self._offsets[pos])
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        source, local = self._locate(index)
+        map_id = int(source.map_indices[local])
+        sim_id = map_id // source.maps_per_simulation
+
+        img = np.array(source.maps()[map_id], dtype=np.float32)
+
+        if self.log_transform:
+            # Positivity was verified for the whole archive by validate_data.py
+            # (section 20.1), so no epsilon is added here. A non-positive value
+            # would produce -inf and is caught below rather than hidden.
+            img = np.log10(img, dtype=np.float32)
+            if not np.isfinite(img).all():
+                raise ValueError(
+                    f"Non-finite value after log10 in {source.suite} map {map_id}. "
+                    f"Re-run scripts/validate_data.py: the archive is not strictly positive."
+                )
+
+        if self.normalizer is not None:
+            img = self.normalizer.apply(img).astype(np.float32, copy=False)
+
+        if self.augment:
+            img = dihedral_transform(img, int(self._rng_for_worker().integers(0, 8)))
+
+        physical = source.params[sim_id, self._target_cols]
+        target = self.target_scaler.forward(physical).astype(np.float32)
+
+        return {
+            "image": img[None, ...],          # (1, H, W)
+            "target": target,                 # (n_targets,) scaled
+            "target_physical": physical.astype(np.float32),
+            "suite_id": source.suite_id,
+            "simulation_id": sim_id,
+            "map_id": map_id,
+        }

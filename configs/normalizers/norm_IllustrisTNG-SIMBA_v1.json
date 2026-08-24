@@ -1,0 +1,35 @@
+{
+  "generated_utc": "2026-08-24T00:18:50+00:00",
+  "normalizer": {
+    "mean": 11.12204030566241,
+    "std": 0.4835651006027383,
+    "provenance": "log10|train|IllustrisTNG+SIMBA|split_v1:f567a2877cdb|n=1769472000"
+  },
+  "statistics": {
+    "n_values": 1769472000,
+    "mean": 11.12204030566241,
+    "std": 0.4835651006027383,
+    "min": 9.668855788988513,
+    "max": 15.623642618333857
+  },
+  "metadata": {
+    "suites": [
+      {
+        "suite": "IllustrisTNG",
+        "n_maps_available": 13500,
+        "n_maps_used": 13500,
+        "n_runs": 92,
+        "subsampled": false
+      },
+      {
+        "suite": "SIMBA",
+        "n_maps_available": 13500,
+        "n_maps_used": 13500,
+        "n_runs": 91,
+        "subsampled": false
+      }
+    ],
+    "log_transform": true
+  },
+  "note": "Computed from source-TRAINING simulations only (plan section 20.2). Applying these to a target suite is the DG-strict condition. Never recompute them on target data without relabelling the experiment as target-aware adaptation (section 21)."
+}
