@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# E01 - IllustrisTNG in-domain baseline (plan sections 33, 68 Phase 3).
+# E02 - SIMBA in-domain baseline (plan sections 33, 68 Phase 3).
 #
 # This is gate B1 and milestone M2: can a standard CNN recover Omega_m and
 # sigma8 at all, trained and tested within one suite? If this fails, the plan
@@ -12,18 +12,17 @@
 # ---------------------------------------------------------------------------
 
 experiment:
-  id: E01_tng_id
+  id: E02_simba_id
   seed: 0
-  notes: "In-domain baseline, IllustrisTNG -> IllustrisTNG. Gate B1."
+  notes: "In-domain baseline, SIMBA -> SIMBA. Gate B1."
 
 data:
   config: configs/data/mtot.yaml
   split_file: configs/splits/split_v1.json
-  # TNG-train statistics only. E10 (TNG->SIMBA) cannot use SIMBA statistics,
-  # so E01 must match it or the ID/OOD comparison is confounded.
-  normalizer: configs/normalizers/norm_IllustrisTNG_v1.json
+  # SIMBA-train statistics only, matching E11 (SIMBA->TNG).
+  normalizer: configs/normalizers/norm_SIMBA_v1.json
   source_suites:
-    - IllustrisTNG
+    - SIMBA
   target_suites:
     - Astrid
   max_simulations: null

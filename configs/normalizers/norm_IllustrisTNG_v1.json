@@ -1,0 +1,28 @@
+{
+  "generated_utc": "2026-08-24T15:28:44+00:00",
+  "normalizer": {
+    "mean": 11.102747585409476,
+    "std": 0.49167342945708686,
+    "provenance": "log10|train|IllustrisTNG|split_v1:f567a2877cdb|n=884736000"
+  },
+  "statistics": {
+    "n_values": 884736000,
+    "mean": 11.102747585409476,
+    "std": 0.49167342945708686,
+    "min": 9.668855788988513,
+    "max": 15.455118947225422
+  },
+  "metadata": {
+    "suites": [
+      {
+        "suite": "IllustrisTNG",
+        "n_maps_available": 13500,
+        "n_maps_used": 13500,
+        "n_runs": 92,
+        "subsampled": false
+      }
+    ],
+    "log_transform": true
+  },
+  "note": "Computed from source-TRAINING simulations only (plan section 20.2). Applying these to a target suite is the DG-strict condition. Never recompute them on target data without relabelling the experiment as target-aware adaptation (section 21)."
+}

@@ -249,8 +249,16 @@ def main() -> int:
         model.load_state_dict(state["model_state"])
         print(f"  evaluating checkpoint from epoch {state['epoch']}")
 
+    # Evaluating ON the transfer target is the point of the experiment and is
+    # permitted (section 18). What is forbidden -- and blocked earlier by the
+    # protocol -- is letting the target influence training, validation or
+    # normalization.
+    eval_suites = list(sources)
+    if exp.get("evaluation", {}).get("include_targets", False):
+        eval_suites += [s for s in protocol.target_suites if s not in eval_suites]
+
     for split in eval_splits:
-        for suite in sources:
+        for suite in eval_suites:
             ds = build_dataset(suites=[suite], split=split, role="eval", **common)
             out = trainer.evaluate(ds, target_scaler, label=f"{suite}_{split}")
             key = f"{suite}_{split}"
