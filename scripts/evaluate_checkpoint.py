@@ -199,11 +199,17 @@ def main() -> int:
         ]
         worst = max(map_ratios)
         print(f"    map-level G ranges {min(map_ratios):.2f} to {worst:.2f}")
+        # Section 35's kill criterion is explicitly about the ratio being low
+        # "consistently ... across both targets and BOTH transfer directions".
+        # This script sees one direction, so it must not pronounce on the
+        # criterion by itself -- a single weak direction is evidence of
+        # asymmetry, not of a dead testbed.
         if worst < 1.2:
-            print("    Section 35: below ~1.2 in every case. The shift may be too weak;")
-            print("    consider a more baryon-sensitive field or a multifield input.")
+            print("    This direction alone shows little degradation. Section 35's kill")
+            print("    criterion requires BOTH directions to be weak, so check the reverse")
+            print("    transfer before concluding anything about the testbed.")
         else:
-            print("    Section 35: a measurable shift exists. The testbed is viable.")
+            print("    This direction shows a measurable shift.")
         print()
 
     out_path = Path(args.out) if args.out else run_dir / f"transfer_{args.split}.json"
