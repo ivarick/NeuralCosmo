@@ -1,0 +1,45 @@
+{
+  "device": "cuda",
+  "gpu": "NVIDIA GeForce RTX 3060",
+  "torch": "2.4.1+cu124",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "data_root": "E:\\universeinfrencedata",
+  "suites": [
+    "IllustrisTNG",
+    "SIMBA"
+  ],
+  "batch_size": 32,
+  "dataset_maps": 6000,
+  "data": [
+    {
+      "workers": 0,
+      "maps": 640,
+      "seconds": 10.21,
+      "maps_per_second": 62.7,
+      "mb_per_second": 15.7
+    },
+    {
+      "workers": 2,
+      "maps": 640,
+      "seconds": 4.891,
+      "maps_per_second": 130.8,
+      "mb_per_second": 32.7
+    },
+    {
+      "workers": 4,
+      "maps": 640,
+      "seconds": 5.476,
+      "maps_per_second": 116.9,
+      "mb_per_second": 29.2
+    }
+  ],
+  "model": {
+    "batch_size": 32,
+    "steps": 25,
+    "seconds": 3.592,
+    "maps_per_second": 222.7,
+    "amp": true,
+    "peak_vram_mb": 2903.8
+  },
+  "verdict": "io_bound"
+}
