@@ -26,6 +26,9 @@ data:
     - Astrid
   max_simulations: null
   augment: false
+  # Hold the quantised source maps in RAM (plan section 83). The archive
+  # is on a USB disk measured at ~19 MB/s cold, which starves the GPU.
+  ram_cache: true
 
 protocol:
   name: dg_strict
