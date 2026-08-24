@@ -110,7 +110,11 @@ class Trainer:
             # Refuse before a single gradient step if selection would see the target.
             protocol.check_validation_suites(val_datasets.keys())
 
-        self.model = model
+        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Move here rather than in fit(): evaluate() is also called directly on
+        # a loaded checkpoint, and a CPU model fed CUDA inputs fails deep inside
+        # the first convolution with a dtype error that names neither cause.
+        self.model = model.to(self.device)
         self.train_dataset = train_dataset
         self.val_datasets = dict(val_datasets)
         self.cfg = config
@@ -118,7 +122,6 @@ class Trainer:
         self.target_names = list(target_names)
         self.target_spans = list(target_spans)
         self.protocol = protocol
-        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.extra_metadata = extra_metadata or {}
 
         self.run_dir.mkdir(parents=True, exist_ok=True)

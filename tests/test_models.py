@@ -208,3 +208,37 @@ def test_parameter_count_is_modest():
     """Section 60: value comes from experiment quality, not parameter count."""
     m = ERMModel(backbone=SmallCNN(latent_dim=256, width=32, depth=5))
     assert m.n_parameters < 20_000_000
+
+
+# --------------------------------------------------------------------------
+# Trainer device handling
+# --------------------------------------------------------------------------
+
+
+def test_trainer_moves_model_to_its_device():
+    """evaluate() is called on loaded checkpoints without fit() ever running.
+
+    If the move happened only inside fit(), a CPU model would be fed device
+    tensors and fail inside the first convolution with a dtype error that names
+    neither the real cause nor the fix.
+    """
+    from pathlib import Path as _Path
+    import tempfile
+
+    from neuralcosmos.training.trainer import TrainConfig, Trainer
+
+    model = ERMModel(backbone=SmallCNN(latent_dim=8, width=4, depth=2))
+    device = torch.device("cpu")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        trainer = Trainer(
+            model=model,
+            train_dataset=None,
+            val_datasets={},
+            config=TrainConfig(epochs=1),
+            run_dir=_Path(tmp),
+            target_names=["omega_m", "sigma8"],
+            target_spans=[0.4, 0.4],
+            device=device,
+        )
+        assert next(trainer.model.parameters()).device.type == device.type
