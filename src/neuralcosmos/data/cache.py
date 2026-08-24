@@ -41,7 +41,16 @@ from typing import Any, Callable
 
 import numpy as np
 
-__all__ = ["QuantSpec", "CachedSuite", "write_cache", "open_cache", "cache_paths"]
+__all__ = [
+    "QuantSpec",
+    "CachedSuite",
+    "write_cache",
+    "open_cache",
+    "cache_paths",
+    "load_into_ram",
+    "ram_cache_bytes",
+    "clear_ram_cache",
+]
 
 _UINT16_MAX = 65535
 _MAGIC = "neuralcosmos-log-uint16-v1"
@@ -214,3 +223,74 @@ def open_cache(cache_root: Path, suite: str, field: str = "Mtot") -> tuple[Path,
 
     q = meta["quantisation"]
     return arr_path, QuantSpec(lo=float(q["lo"]), hi=float(q["hi"]))
+
+
+# ---------------------------------------------------------------------------
+# In-memory cache
+# ---------------------------------------------------------------------------
+#
+# On a machine with plenty of RAM but a nearly full system drive, holding the
+# quantised maps in memory beats writing them to disk: no disk space is
+# consumed, and a RAM read is faster than any SSD. At 2 bytes per pixel one
+# suite is 1.83 GiB, so both source suites fit in 3.66 GiB.
+#
+# The store is process-global and keyed by source path, so the train and
+# validation datasets of one suite share a single array rather than loading it
+# twice. Because a spawned DataLoader worker would COPY the whole array, a
+# RAM-backed dataset must be driven with num_workers=0 -- which costs nothing,
+# since there is no I/O left to overlap with.
+
+_RAM_STORE: dict[str, np.ndarray] = {}
+
+
+def _ram_key(source_path: Path, spec: QuantSpec) -> str:
+    return f"{Path(source_path).resolve()}|{spec.lo}|{spec.hi}"
+
+
+def load_into_ram(
+    source_path: Path,
+    spec: QuantSpec | None = None,
+    chunk_maps: int = 250,
+    progress: Callable[[int, int], None] | None = None,
+    force: bool = False,
+) -> np.ndarray:
+    """Quantise a raw archive file into a uint16 array held in RAM.
+
+    Returns the shared array. Repeated calls for the same file and window
+    return the same object rather than re-reading the archive.
+    """
+    spec = spec or QuantSpec()
+    key = _ram_key(source_path, spec)
+    if key in _RAM_STORE and not force:
+        return _RAM_STORE[key]
+
+    src = np.load(source_path, mmap_mode="r")
+    shape = tuple(int(v) for v in src.shape)
+    out = np.empty(shape, dtype=np.uint16)
+
+    try:
+        for start in range(0, shape[0], chunk_maps):
+            stop = min(start + chunk_maps, shape[0])
+            block = np.asarray(src[start:stop], dtype=np.float64)
+            if np.any(block <= 0):
+                raise ValueError(
+                    f"non-positive pixel in maps [{start}, {stop}) of "
+                    f"{Path(source_path).name}; log10 is undefined."
+                )
+            out[start:stop] = spec.encode(np.log10(block))
+            if progress is not None:
+                progress(stop, shape[0])
+    finally:
+        del src
+
+    _RAM_STORE[key] = out
+    return out
+
+
+def ram_cache_bytes() -> int:
+    """Total bytes currently held by the in-memory store."""
+    return sum(a.nbytes for a in _RAM_STORE.values())
+
+
+def clear_ram_cache() -> None:
+    _RAM_STORE.clear()

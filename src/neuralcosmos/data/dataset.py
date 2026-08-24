@@ -103,9 +103,14 @@ class SuiteSource:
     params: np.ndarray           # (n_simulations, 6) in physical units
     map_indices: np.ndarray      # global map indices belonging to this split
     maps_per_simulation: int
-    # When set, map_path points at a uint16 log-quantised cache rather than the
-    # raw float32 archive, and values decode straight to log10 (section 83).
+    # When set, values are uint16 log-quantised codes rather than raw float32
+    # densities, and decode straight to log10 (section 83).
     quant_spec: QuantSpec | None = None
+    # An in-RAM uint16 array. When present it supersedes map_path entirely.
+    # A spawned DataLoader worker would copy this, so a RAM-backed dataset must
+    # run with num_workers=0 -- which costs nothing, since there is no I/O left
+    # to overlap with.
+    ram_array: np.ndarray | None = field(default=None, repr=False)
     _handle: Any = field(default=None, init=False, repr=False)
     _pid: int | None = field(default=None, init=False, repr=False)
 
@@ -113,12 +118,19 @@ class SuiteSource:
     def is_cached(self) -> bool:
         return self.quant_spec is not None
 
-    def maps(self) -> np.ndarray:
-        """Return this suite's memory-mapped array, opening it if needed.
+    @property
+    def in_ram(self) -> bool:
+        return self.ram_array is not None
 
-        The handle is re-opened when the process ID changes, which is what makes
-        this safe across spawned DataLoader workers.
+    def maps(self) -> np.ndarray:
+        """Return this suite's map array.
+
+        An in-RAM array is returned directly. Otherwise the memory-mapped file
+        is opened, re-opening whenever the process ID changes -- which is what
+        makes this safe across spawned DataLoader workers.
         """
+        if self.ram_array is not None:
+            return self.ram_array
         pid = os.getpid()
         if self._handle is None or self._pid != pid:
             self._handle = np.load(self.map_path, mmap_mode="r")
@@ -195,6 +207,21 @@ class CAMELSMapDataset:
     @property
     def suites(self) -> list[str]:
         return [s.suite for s in self.sources]
+
+    @property
+    def in_ram(self) -> bool:
+        """True if any source is backed by an in-memory array.
+
+        Callers must then use ``num_workers=0``: a spawned worker would copy
+        every RAM-backed array into its own process, multiplying a 3.7 GiB
+        footprint by the worker count. There is nothing to gain anyway, since
+        the point of the RAM cache is that no I/O remains to overlap.
+        """
+        return any(s.in_ram for s in self.sources)
+
+    def safe_num_workers(self, requested: int) -> int:
+        """Clamp a requested worker count to what this dataset can support."""
+        return 0 if self.in_ram else requested
 
     def simulation_ids(self) -> np.ndarray:
         """Simulation ID of every sample, in dataset order.

@@ -14,7 +14,7 @@ from typing import Any, Sequence
 import numpy as np
 
 from ..protocol import ExperimentProtocol
-from .cache import open_cache
+from .cache import QuantSpec, load_into_ram, open_cache
 from .dataset import CAMELSMapDataset, LogNormalizer, SuiteSource
 from .manifest import load_data_config, resolve_suite_files
 from .splits import SplitFile, maps_for_simulations
@@ -61,6 +61,9 @@ def build_sources(
     split: str,
     max_simulations: int | None = None,
     cache_root: Path | None = None,
+    ram_cache: bool = False,
+    ram_suites: Sequence[str] | None = None,
+    progress=None,
 ) -> list[SuiteSource]:
     """Build one :class:`SuiteSource` per requested suite for a given split.
 
@@ -69,9 +72,15 @@ def build_sources(
     validation and test simulations are drawn from the front of the permutation
     (see ``splits.make_suite_split``), truncating train never disturbs them.
 
-    ``cache_root`` opts into the uint16 log-quantised cache of section 83. A
-    suite that has no cache there falls back to the raw archive, so a partial
-    cache (source suites only) is a supported configuration.
+    ``cache_root`` opts into the on-disk uint16 log-quantised cache of section
+    83. A suite that has no cache there falls back to the raw archive, so a
+    partial cache (source suites only) is a supported configuration.
+
+    ``ram_cache`` instead quantises into memory: 1.83 GiB per suite, no disk
+    space, and faster than any disk. ``ram_suites`` restricts which suites are
+    held in RAM, so the sealed target can stream from the archive while the
+    source suites stay resident. The store is process-global and keyed by file,
+    so the train and validation datasets of one suite share a single array.
     """
     ids = suite_id_map(cfg)
     maps_per_sim = int(cfg["maps_per_simulation"])
@@ -90,8 +99,17 @@ def build_sources(
                 )
             sim_ids = sim_ids[:max_simulations]
 
-        map_path, quant_spec = sf.map_path, None
-        if cache_root is not None:
+        map_path, quant_spec, ram_array = sf.map_path, None, None
+
+        want_ram = ram_cache and (ram_suites is None or suite in ram_suites)
+        if want_ram:
+            quant_spec = QuantSpec()
+            ram_array = load_into_ram(
+                sf.map_path,
+                quant_spec,
+                progress=(lambda d, t, _s=suite: progress(_s, d, t)) if progress else None,
+            )
+        elif cache_root is not None:
             try:
                 map_path, quant_spec = open_cache(Path(cache_root), suite, field)
             except FileNotFoundError:
@@ -108,6 +126,7 @@ def build_sources(
                 map_indices=maps_for_simulations(sim_ids, maps_per_sim),
                 maps_per_simulation=maps_per_sim,
                 quant_spec=quant_spec,
+                ram_array=ram_array,
             )
         )
     return sources
@@ -127,6 +146,9 @@ def build_dataset(
     augment_seed: int = 0,
     max_simulations: int | None = None,
     cache_root: Path | None = None,
+    ram_cache: bool = False,
+    ram_suites: Sequence[str] | None = None,
+    progress=None,
 ) -> CAMELSMapDataset:
     """Build a dataset, enforcing the experiment protocol.
 
@@ -150,6 +172,7 @@ def build_dataset(
     sources = build_sources(
         cfg, data_root, split_file, suites, split,
         max_simulations=max_simulations, cache_root=cache_root,
+        ram_cache=ram_cache, ram_suites=ram_suites, progress=progress,
     )
     return CAMELSMapDataset(
         sources=sources,

@@ -1,0 +1,52 @@
+# ---------------------------------------------------------------------------
+# E00 - data and GPU smoke test (plan section 68, Phase 2).
+#
+# Purpose: verify the GPU path, that loss decreases, that checkpointing works
+# and that memory is stable. Section 68 is explicit:
+#
+#   "Do not interpret smoke-run metrics scientifically."
+#
+# 100 simulations per suite, few epochs. Nothing here is a result.
+# ---------------------------------------------------------------------------
+
+experiment:
+  id: E00_smoke
+  seed: 0
+  notes: "Pipeline smoke test. Metrics are not scientific results."
+
+data:
+  config: configs/data/mtot.yaml
+  split_file: configs/splits/split_v1.json
+  normalizer: configs/normalizers/norm_IllustrisTNG-SIMBA_v1.json
+  source_suites:
+    - IllustrisTNG
+  target_suites:
+    - Astrid
+  max_simulations: 100
+  augment: false
+
+protocol:
+  name: dg_strict
+  use_target_for_training: false
+  use_target_for_validation: false
+  use_target_statistics: false
+
+model:
+  type: small_cnn
+  latent_dim: 128
+  width: 16
+  depth: 5
+  head_hidden: 128
+
+training:
+  epochs: 3
+  batch_size: 32
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  num_workers: 2
+  amp: true
+  early_stopping_patience: null
+  warmup_epochs: 1
+
+evaluation:
+  splits: [val]

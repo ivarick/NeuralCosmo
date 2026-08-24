@@ -257,3 +257,99 @@ def test_cache_stores_unnormalised_values(synthetic_archive: Path, tmp_path: Pat
     decoded = cached.spec.decode(np.load(cached.path)[:2], dtype=np.float64)
     # Raw log10 of ~1e10-scale densities, not a standardised quantity.
     assert decoded.mean() > 5.0
+
+
+# --------------------------------------------------------------------------
+# In-memory cache
+# --------------------------------------------------------------------------
+
+
+def test_ram_cache_matches_disk_cache(synthetic_archive: Path, tmp_path: Path):
+    from neuralcosmos.data.cache import clear_ram_cache, load_into_ram
+
+    clear_ram_cache()
+    src = synthetic_archive / "Maps_Mtot_SuiteA_LH_z=0.00.npy"
+    on_disk = write_cache("SuiteA", src, tmp_path / "cache")
+    in_ram = load_into_ram(src, on_disk.spec)
+
+    assert np.array_equal(in_ram, np.load(on_disk.path))
+    clear_ram_cache()
+
+
+def test_ram_cache_is_shared_between_calls(synthetic_archive: Path):
+    """Train and val datasets of one suite must not load the array twice."""
+    from neuralcosmos.data.cache import clear_ram_cache, load_into_ram
+
+    clear_ram_cache()
+    src = synthetic_archive / "Maps_Mtot_SuiteA_LH_z=0.00.npy"
+    a = load_into_ram(src)
+    b = load_into_ram(src)
+    assert a is b
+    clear_ram_cache()
+
+
+def test_ram_cache_reports_its_footprint(synthetic_archive: Path):
+    from neuralcosmos.data.cache import clear_ram_cache, load_into_ram, ram_cache_bytes
+
+    clear_ram_cache()
+    assert ram_cache_bytes() == 0
+    arr = load_into_ram(synthetic_archive / "Maps_Mtot_SuiteA_LH_z=0.00.npy")
+    assert ram_cache_bytes() == arr.nbytes
+    assert arr.dtype == np.uint16
+    clear_ram_cache()
+
+
+def test_ram_cache_rejects_nonpositive(tmp_path: Path):
+    from neuralcosmos.data.cache import clear_ram_cache, load_into_ram
+
+    clear_ram_cache()
+    bad = tmp_path / "bad.npy"
+    arr = np.full((3, 3, 3), 1e10, dtype=np.float32)
+    arr[0, 0, 0] = -1.0
+    np.save(bad, arr)
+    with pytest.raises(ValueError, match="non-positive pixel"):
+        load_into_ram(bad)
+    clear_ram_cache()
+
+
+def test_ram_dataset_matches_raw_dataset(cfg, synthetic_archive, split_file, norm):
+    from neuralcosmos.data.cache import clear_ram_cache
+
+    clear_ram_cache()
+    raw = build_dataset(cfg, synthetic_archive, split_file, ["SuiteA"], "train", norm)
+    ram = build_dataset(cfg, synthetic_archive, split_file, ["SuiteA"], "train", norm,
+                        ram_cache=True)
+
+    assert ram.in_ram
+    assert not raw.in_ram
+    for i in (0, 5, len(raw) - 1):
+        assert np.abs(raw[i]["image"] - ram[i]["image"]).max() < 1e-3
+        assert np.array_equal(raw[i]["target"], ram[i]["target"])
+    clear_ram_cache()
+
+
+def test_ram_dataset_forces_single_process_loading(cfg, synthetic_archive, split_file, norm):
+    """A spawned worker would copy the whole array into its own process."""
+    from neuralcosmos.data.cache import clear_ram_cache
+
+    clear_ram_cache()
+    ram = build_dataset(cfg, synthetic_archive, split_file, ["SuiteA"], "train", norm,
+                        ram_cache=True)
+    raw = build_dataset(cfg, synthetic_archive, split_file, ["SuiteA"], "train", norm)
+
+    assert ram.safe_num_workers(4) == 0
+    assert raw.safe_num_workers(4) == 4
+    clear_ram_cache()
+
+
+def test_ram_suites_can_be_restricted(cfg, synthetic_archive, split_file, norm):
+    """The sealed target streams from disk while sources stay resident."""
+    from neuralcosmos.data.cache import clear_ram_cache
+
+    clear_ram_cache()
+    sources = build_sources(cfg, synthetic_archive, split_file, ["SuiteA", "SuiteB"], "train",
+                            ram_cache=True, ram_suites=["SuiteA"])
+    by_name = {s.suite: s for s in sources}
+    assert by_name["SuiteA"].in_ram
+    assert not by_name["SuiteB"].in_ram
+    clear_ram_cache()

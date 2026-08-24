@@ -136,6 +136,17 @@ def main() -> int:
     ap.add_argument("--model-steps", type=int, default=30)
     ap.add_argument("--max-simulations", type=int, default=200)
     ap.add_argument("--no-amp", action="store_true")
+    ap.add_argument(
+        "--cache-root",
+        default=None,
+        help="read from the uint16 cache; default NEURALCOSMOS_CACHE_ROOT if set",
+    )
+    ap.add_argument("--no-cache", action="store_true", help="ignore the cache entirely")
+    ap.add_argument(
+        "--ram",
+        action="store_true",
+        help="quantise into RAM instead of reading from disk (forces workers=0)",
+    )
     ap.add_argument("--out", default="reports/io_benchmark.json")
     args = ap.parse_args()
 
@@ -169,12 +180,38 @@ def main() -> int:
     print(f"  batch size : {args.batch_size}")
     print()
 
+    import os
+
+    cache_root = None
+    if not args.no_cache:
+        cr = args.cache_root or os.environ.get("NEURALCOSMOS_CACHE_ROOT")
+        if cr:
+            cache_root = Path(cr)
+
+    if args.ram:
+        print("  loading into RAM (one-off quantisation pass)...")
+    t_load = time.perf_counter()
     dataset = build_dataset(
         cfg, data_root, split_file, suites, "train", normalizer,
-        max_simulations=args.max_simulations,
+        max_simulations=args.max_simulations, cache_root=cache_root,
+        ram_cache=args.ram,
     )
+    load_seconds = time.perf_counter() - t_load
+
+    n_cached = sum(1 for s in dataset.sources if s.is_cached)
     print(f"  dataset    : {len(dataset):,} maps "
           f"({args.max_simulations} sims/suite)")
+    if args.ram:
+        from neuralcosmos.data.cache import ram_cache_bytes
+
+        print(f"  source     : RAM ({ram_cache_bytes() / 1024**3:.2f} GiB resident, "
+              f"loaded in {load_seconds:.0f}s)")
+        if worker_counts != [0]:
+            print("  note       : forcing workers=0; a spawned worker would copy the array")
+            worker_counts = [0]
+    else:
+        print(f"  source     : {n_cached}/{len(dataset.sources)} suites from cache"
+              + (f" at {cache_root}" if cache_root else " (cache disabled)"))
     print()
 
     # ---- data side ------------------------------------------------------
@@ -242,6 +279,8 @@ def main() -> int:
                 "torch": torch.__version__,
                 "platform": platform.platform(),
                 "data_root": str(data_root),
+                "cache_root": str(cache_root) if cache_root else None,
+                "suites_from_cache": n_cached,
                 "suites": suites,
                 "batch_size": args.batch_size,
                 "dataset_maps": len(dataset),
