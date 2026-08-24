@@ -14,6 +14,7 @@ from typing import Any, Sequence
 import numpy as np
 
 from ..protocol import ExperimentProtocol
+from .cache import open_cache
 from .dataset import CAMELSMapDataset, LogNormalizer, SuiteSource
 from .manifest import load_data_config, resolve_suite_files
 from .splits import SplitFile, maps_for_simulations
@@ -59,6 +60,7 @@ def build_sources(
     suites: Sequence[str],
     split: str,
     max_simulations: int | None = None,
+    cache_root: Path | None = None,
 ) -> list[SuiteSource]:
     """Build one :class:`SuiteSource` per requested suite for a given split.
 
@@ -66,9 +68,14 @@ def build_sources(
     (section 68 Phase 2) and the data-efficiency ablation (section 15). Because
     validation and test simulations are drawn from the front of the permutation
     (see ``splits.make_suite_split``), truncating train never disturbs them.
+
+    ``cache_root`` opts into the uint16 log-quantised cache of section 83. A
+    suite that has no cache there falls back to the raw archive, so a partial
+    cache (source suites only) is a supported configuration.
     """
     ids = suite_id_map(cfg)
     maps_per_sim = int(cfg["maps_per_simulation"])
+    field = str(cfg.get("field", "Mtot"))
     sources: list[SuiteSource] = []
 
     for suite in suites:
@@ -83,14 +90,24 @@ def build_sources(
                 )
             sim_ids = sim_ids[:max_simulations]
 
+        map_path, quant_spec = sf.map_path, None
+        if cache_root is not None:
+            try:
+                map_path, quant_spec = open_cache(Path(cache_root), suite, field)
+            except FileNotFoundError:
+                # Falling back to the raw archive is correct, not a failure: the
+                # cache is a speed optimisation and is intentionally partial.
+                pass
+
         sources.append(
             SuiteSource(
                 suite=suite,
                 suite_id=ids[suite],
-                map_path=sf.map_path,
+                map_path=map_path,
                 params=load_suite_params(cfg, data_root, suite),
                 map_indices=maps_for_simulations(sim_ids, maps_per_sim),
                 maps_per_simulation=maps_per_sim,
+                quant_spec=quant_spec,
             )
         )
     return sources
@@ -109,6 +126,7 @@ def build_dataset(
     augment: bool = False,
     augment_seed: int = 0,
     max_simulations: int | None = None,
+    cache_root: Path | None = None,
 ) -> CAMELSMapDataset:
     """Build a dataset, enforcing the experiment protocol.
 
@@ -130,7 +148,8 @@ def build_dataset(
             protocol.check_normalizer(normalizer.provenance)
 
     sources = build_sources(
-        cfg, data_root, split_file, suites, split, max_simulations=max_simulations
+        cfg, data_root, split_file, suites, split,
+        max_simulations=max_simulations, cache_root=cache_root,
     )
     return CAMELSMapDataset(
         sources=sources,

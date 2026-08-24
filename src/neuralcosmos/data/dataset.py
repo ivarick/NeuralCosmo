@@ -30,6 +30,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
+from .cache import QuantSpec
 from .splits import maps_for_simulations
 from .targets import TargetScaler
 
@@ -102,8 +103,15 @@ class SuiteSource:
     params: np.ndarray           # (n_simulations, 6) in physical units
     map_indices: np.ndarray      # global map indices belonging to this split
     maps_per_simulation: int
+    # When set, map_path points at a uint16 log-quantised cache rather than the
+    # raw float32 archive, and values decode straight to log10 (section 83).
+    quant_spec: QuantSpec | None = None
     _handle: Any = field(default=None, init=False, repr=False)
     _pid: int | None = field(default=None, init=False, repr=False)
+
+    @property
+    def is_cached(self) -> bool:
+        return self.quant_spec is not None
 
     def maps(self) -> np.ndarray:
         """Return this suite's memory-mapped array, opening it if needed.
@@ -146,6 +154,18 @@ class CAMELSMapDataset:
     ) -> None:
         if not sources:
             raise ValueError("CAMELSMapDataset requires at least one SuiteSource")
+
+        # A cached source always yields log10 values. Mixing that with
+        # log_transform=False would hand the model log data from one suite and
+        # linear data from another -- a difference far larger than the domain
+        # shift being studied, and invisible in any metric.
+        cached = [s.suite for s in sources if s.is_cached]
+        if cached and not log_transform:
+            raise ValueError(
+                f"Suites {cached} read from a log-quantised cache, which always "
+                f"yields log10 values, but log_transform=False was requested. "
+                f"Use the raw archive for a linear-space experiment."
+            )
 
         self.sources = list(sources)
         self.target_scaler = target_scaler
@@ -224,18 +244,25 @@ class CAMELSMapDataset:
         map_id = int(source.map_indices[local])
         sim_id = map_id // source.maps_per_simulation
 
-        img = np.array(source.maps()[map_id], dtype=np.float32)
+        raw = source.maps()[map_id]
 
-        if self.log_transform:
-            # Positivity was verified for the whole archive by validate_data.py
-            # (section 20.1), so no epsilon is added here. A non-positive value
-            # would produce -inf and is caught below rather than hidden.
-            img = np.log10(img, dtype=np.float32)
-            if not np.isfinite(img).all():
-                raise ValueError(
-                    f"Non-finite value after log10 in {source.suite} map {map_id}. "
-                    f"Re-run scripts/validate_data.py: the archive is not strictly positive."
-                )
+        if source.is_cached:
+            # Already log10, stored as uint16 codes. Decoding is a multiply-add.
+            img = source.quant_spec.decode(np.asarray(raw), dtype=np.float32)
+        else:
+            img = np.array(raw, dtype=np.float32)
+            if self.log_transform:
+                # Positivity was verified across the whole archive by
+                # validate_data.py (section 20.1), so no epsilon is added here.
+                # A non-positive value would produce -inf and is caught below
+                # rather than silently repaired.
+                img = np.log10(img, dtype=np.float32)
+                if not np.isfinite(img).all():
+                    raise ValueError(
+                        f"Non-finite value after log10 in {source.suite} map {map_id}. "
+                        f"Re-run scripts/validate_data.py: the archive is not "
+                        f"strictly positive."
+                    )
 
         if self.normalizer is not None:
             img = self.normalizer.apply(img).astype(np.float32, copy=False)
