@@ -27,17 +27,51 @@ no target normalization statistics are used at any point before the configuratio
 
 ## Status
 
-> **Phase 1 of 17 — data validation.** No scientific results yet. Nothing in this repository
-> should be cited as a finding. The results table below is deliberately empty and will be
-> filled only from runs recorded in `reports/final_runs.json`.
+> **Phases 0–4 of 17 complete.** In-domain baselines and the cross-simulator
+> measurement are done and replicated across three seeds. **No novel method has
+> been implemented yet**, and nothing here has been peer reviewed. Astrid remains
+> sealed: it has never been used for training, validation, normalization or model
+> selection.
 
-| Model | ID RMSE | Astrid OOD RMSE | Simulator probe acc. |
-|---|---:|---:|---:|
-| ERM (baseline) | — | — | — |
-| DANN | — | — | — |
-| MMD / CORAL | — | — | — |
-| MIEST-comparable | — | — | — |
-| *proposed* | — | — | — |
+### What has been measured
+
+In-domain, held-out test simulations (map level):
+
+| Suite | MAE Ωm | MAE σ8 | R² Ωm | R² σ8 |
+|---|---:|---:|---:|---:|
+| IllustrisTNG | 0.0082 | 0.0137 | 0.991 | 0.974 |
+| SIMBA | 0.0091 | 0.0161 | 0.990 | 0.973 |
+
+Cross-simulator transfer, `G = OOD error / ID error`, mean ± sd over 3 seeds:
+
+| Level | Target | TNG → SIMBA | SIMBA → TNG |
+|---|---|---:|---:|
+| map | Ωm | **2.22 ± 0.31** | 1.20 ± 0.03 |
+| map | σ8 | **1.57 ± 0.02** | 0.98 ± 0.05 |
+| simulation | Ωm | **4.25 ± 0.86** | 2.00 ± 0.20 |
+| simulation | σ8 | **2.69 ± 0.13** | 1.00 ± 0.15 |
+
+Three things follow, and they are the current state of the science here:
+
+1. **The shift is strongly directional.** Training on SIMBA transfers to
+   IllustrisTNG with little or no loss; the reverse fails. σ8 in the reverse
+   direction degrades by nothing measurable at all.
+2. **Transfer error is systematic, not stochastic.** Averaging the 15 maps of a
+   simulation removes 56% of in-domain error but only 16–39% of transfer error.
+   Simulator shift cannot be averaged away by observing a region more times.
+3. **Ordinary training entangles the two signals.** A frozen ERM representation
+   yields 0.75 balanced accuracy on a simulator-identity probe (chance 0.50)
+   while still supporting R² ≈ 0.98 on cosmology.
+
+Why the shift is *directional* remains **unexplained**. The first hypothesis —
+that SIMBA's feedback erases small-scale structure — was tested against measured
+power spectra and falsified; the SIMBA/TNG ratio dips at intermediate k and rises
+*above* 1 at small scales. It is recorded as a negative result rather than
+replaced with a story that fits the data after the fact.
+
+Full detail: [`docs/PROGRESS.md`](docs/PROGRESS.md),
+[`reports/baseline_report.md`](reports/baseline_report.md),
+[`reports/novelty_audit.md`](reports/novelty_audit.md).
 
 ---
 
@@ -128,20 +162,53 @@ $env:CAMELS_DATA_ROOT = "E:\universeinfrencedata"
 pip install -e ".[dev]"
 ```
 
+Validate the archive before anything else — this is the gate that refuses bad
+data, and it verifies positivity across all 2.9 billion pixels:
+
 ```bash
-python scripts/validate_data.py --config configs/data/mtot.yaml
+python scripts/validate_data.py --config configs/data/mtot.yaml --manifest
 ```
+
+Build the permanent simulation-level split, then the source-train-only
+normalization statistics:
 
 ```bash
 python scripts/build_splits.py --seed 42
 ```
 
 ```bash
-python scripts/run_experiment.py --config configs/experiments/e01_tng_id.yaml
+python scripts/compute_stats.py --source IllustrisTNG
 ```
 
-The unit-test suite runs **without** the CAMELS archive present; tests that need real data are
-marked `requires_data` and deselected by default.
+Train an in-domain baseline, then evaluate the frozen checkpoint on the transfer
+suite without retraining:
+
+```bash
+python scripts/run_experiment.py --config configs/experiments/e01_tng_id.yaml --seed 0
+```
+
+```bash
+python scripts/evaluate_checkpoint.py --run E01_tng_id_seed00 --suite IllustrisTNG --suite SIMBA
+```
+
+Diagnostics and reports — every table is regenerated from run JSON, never typed
+by hand:
+
+```bash
+python scripts/run_domain_probe.py --run E01_tng_id_seed00
+```
+
+```bash
+python scripts/aggregate_seeds.py
+```
+
+If the archive lives on a slow disk, hold the quantised maps in RAM instead
+(3.66 GiB for two suites, measured 61× faster here). It is on by default in the
+experiment configs; `scripts/benchmark_io.py` reports whether it is needed.
+
+The unit-test suite runs **without** the CAMELS archive present — 221 tests
+against a synthetic mini-archive that reproduces the structural invariants at
+tiny scale:
 
 ```bash
 pytest
