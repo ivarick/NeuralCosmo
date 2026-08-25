@@ -85,6 +85,9 @@ class EpochRecord:
     per_suite: dict[str, float] = field(default_factory=dict)
     seconds: float = 0.0
     lr: float = 0.0
+    # Auxiliary losses for the DG baselines, kept separate from the task loss
+    # so an alignment term shrinking while the regression worsens stays visible.
+    aux: dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -167,9 +170,28 @@ class Trainer:
 
     # -- one epoch ----------------------------------------------------------
 
-    def _train_epoch(self, loader: DataLoader, optimizer, scaler, use_amp: bool) -> float:
+    def _train_epoch(
+        self,
+        loader: DataLoader,
+        optimizer,
+        scaler,
+        use_amp: bool,
+        progress: float = 0.0,
+    ) -> tuple[float, dict[str, float]]:
+        """One epoch. Returns the task loss and any auxiliary loss averages.
+
+        A model exposing ``forward_train`` is a domain-generalization baseline
+        and additionally returns auxiliary losses computed from the same latent
+        vector. The task loss is tracked separately from the total so that
+        methods remain comparable: an alignment term can shrink the total while
+        the regression is getting worse, and averaging them into one number
+        would hide exactly that.
+        """
         self.model.train()
         total, n = 0.0, 0
+        aux_totals: dict[str, float] = {}
+
+        is_dg = hasattr(self.model, "forward_train")
 
         for batch in loader:
             x = batch["image"].to(self.device, non_blocking=True)
@@ -177,7 +199,19 @@ class Trainer:
 
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=self.device.type, enabled=use_amp):
-                loss = nn.functional.mse_loss(self.model(x), y)
+                if is_dg:
+                    domains = batch["suite_id"].to(self.device, non_blocking=True)
+                    pred, _, aux = self.model.forward_train(x, domains, progress=progress)
+                    task_loss = nn.functional.mse_loss(pred, y)
+                    loss = task_loss
+                    for name, value in aux.items():
+                        if name.startswith("_"):      # diagnostics, not losses
+                            continue
+                        loss = loss + value
+                else:
+                    aux = {}
+                    task_loss = nn.functional.mse_loss(self.model(x), y)
+                    loss = task_loss
 
             scaler.scale(loss).backward()
             if self.cfg.grad_clip:
@@ -186,10 +220,14 @@ class Trainer:
             scaler.step(optimizer)
             scaler.update()
 
-            total += loss.item() * x.shape[0]
-            n += x.shape[0]
+            bs = x.shape[0]
+            total += task_loss.item() * bs
+            n += bs
+            for name, value in aux.items():
+                aux_totals[name] = aux_totals.get(name, 0.0) + float(value.item()) * bs
 
-        return total / max(n, 1)
+        denom = max(n, 1)
+        return total / denom, {k: v / denom for k, v in aux_totals.items()}
 
     @torch.no_grad()
     def predict(self, dataset, use_amp: bool = True) -> dict[str, np.ndarray]:
@@ -290,7 +328,10 @@ class Trainer:
 
         for epoch in range(total_epochs):
             t0 = time.time()
-            train_loss = self._train_epoch(self._train_loader(epoch), optimizer, scaler, use_amp)
+            progress = epoch / max(1, total_epochs - 1)
+            train_loss, aux = self._train_epoch(
+                self._train_loader(epoch), optimizer, scaler, use_amp, progress=progress
+            )
             val_loss, val_score, per_suite = self._validate(inverse)
             scheduler.step()
             dt = time.time() - t0
@@ -304,6 +345,7 @@ class Trainer:
                 seconds=dt,
                 lr=optimizer.param_groups[0]["lr"],
             )
+            rec.aux = aux
             self.history.append(rec)
 
             marker = ""
@@ -316,8 +358,15 @@ class Trainer:
             else:
                 epochs_without_improvement += 1
 
+            aux_str = ""
+            if aux:
+                aux_str = "  " + " ".join(
+                    f"{k}={v:.4f}" for k, v in aux.items() if not k.startswith("_")
+                )
+                if "_lambda" in aux:
+                    aux_str += f" lam={aux['_lambda']:.2f}"
             print(f"  {epoch:>5} {train_loss:>10.5f} {val_loss:>10.5f} "
-                  f"{val_score:>10.5f} {rec.lr:>9.2e} {dt:>6.1f}{marker}")
+                  f"{val_score:>10.5f} {rec.lr:>9.2e} {dt:>6.1f}{marker}{aux_str}")
 
             if (
                 self.cfg.early_stopping_patience is not None

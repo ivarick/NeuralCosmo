@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------------------
+# E24_miest_like - MIEST-comparable de-classification plus bottleneck (plan sections 32, 33, 68 Phase 5).
+#
+# MULTI-SOURCE. Trains on IllustrisTNG + SIMBA together, which is what these
+# methods require: an adversary or an alignment term needs at least two domains
+# present in the batch to have anything to act on.
+#
+# A STRUCTURAL LIMIT OF PHASE 5, stated here so it is not discovered later:
+# with only two development suites and Astrid sealed, the out-of-distribution
+# benefit of a multi-source method CANNOT be measured before the freeze. What
+# can be measured without touching Astrid is
+#
+#   - source-validation error (does the method damage the task?)
+#   - the domain probe of section 37 (does it actually remove simulator
+#     information, or only claim to?)
+#   - the trade-off plot of section 40, which places each method as a point in
+#     (simulator leakage, source error)
+#
+# That is the evidence Phase 5 is allowed to produce. Section 52 then freezes
+# the design on it and evaluates Astrid exactly once.
+#
+# NOT a reproduction. MIEST uses HI maps and a different architecture;
+# section 32 requires those differences documented, see reports/novelty_audit.md.
+# ---------------------------------------------------------------------------
+
+experiment:
+  id: E24_miest_like
+  seed: 0
+  notes: "MIEST-comparable de-classification plus bottleneck. Baseline, not a contribution."
+
+data:
+  config: configs/data/mtot.yaml
+  split_file: configs/splits/split_v1.json
+  # Both suites are sources here, so combined statistics are correct and carry
+  # no target information: Astrid is named nowhere in the provenance.
+  normalizer: configs/normalizers/norm_IllustrisTNG-SIMBA_v1.json
+  source_suites:
+    - IllustrisTNG
+    - SIMBA
+  target_suites:
+    - Astrid
+  max_simulations: null
+  augment: false
+  ram_cache: true
+
+protocol:
+  name: dg_strict
+  use_target_for_training: false
+  use_target_for_validation: false
+  use_target_statistics: false
+
+method:
+  name: miest_like
+  adversarial_weight: 1.0
+  grl_gamma: 10.0
+  bottleneck_weight: 0.001
+
+model:
+  type: small_cnn
+  latent_dim: 256
+  width: 32
+  depth: 5
+  head_hidden: 128
+
+training:
+  epochs: 60
+  batch_size: 32          # 16 per suite; section 61 requires balanced batches
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  num_workers: 2
+  amp: true
+  grad_clip: 1.0
+  early_stopping_patience: 15
+  warmup_epochs: 2
+
+evaluation:
+  splits: [val, test]
+  include_targets: false   # Astrid stays sealed until section 52's freeze
