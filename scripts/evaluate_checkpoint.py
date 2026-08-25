@@ -40,6 +40,7 @@ from neuralcosmos.data.splits import load_split_file  # noqa: E402
 from neuralcosmos.data.statistics import load_normalizer  # noqa: E402
 from neuralcosmos.data.targets import TargetScaler  # noqa: E402
 from neuralcosmos.evaluation.metrics import generalization_ratio  # noqa: E402
+from neuralcosmos.models.dg_methods import build_dg_model  # noqa: E402
 from neuralcosmos.models.erm import ERMModel  # noqa: E402
 from neuralcosmos.paths import DataRootNotFound, repo_root, resolve_data_root  # noqa: E402
 from neuralcosmos.protocol import ExperimentProtocol, ProtocolViolation  # noqa: E402
@@ -107,7 +108,15 @@ def main() -> int:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     target_scaler = TargetScaler.from_config(cfg)
-    model = ERMModel.from_config(exp, n_targets=len(target_scaler.names))
+    # A DG checkpoint stores keys under "base.", so the same wrapper must be
+    # rebuilt or load_state_dict fails on every parameter name.
+    method = str(exp.get("method", {}).get("name", "erm"))
+    if method == "erm" and "method" not in exp:
+        model = ERMModel.from_config(exp, n_targets=len(target_scaler.names))
+    else:
+        model = build_dg_model(
+            exp, n_targets=len(target_scaler.names), n_domains=len(sources)
+        )
     state = torch.load(ckpt_path, map_location=device, weights_only=False)
     model.load_state_dict(state["model_state"])
 

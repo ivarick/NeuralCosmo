@@ -36,6 +36,7 @@ from neuralcosmos.data.manifest import load_data_config  # noqa: E402
 from neuralcosmos.data.splits import load_split_file  # noqa: E402
 from neuralcosmos.data.statistics import load_normalizer  # noqa: E402
 from neuralcosmos.data.targets import TargetScaler  # noqa: E402
+from neuralcosmos.models.dg_methods import build_dg_model  # noqa: E402
 from neuralcosmos.models.erm import ERMModel  # noqa: E402
 from neuralcosmos.paths import DataRootNotFound, repo_root, resolve_data_root  # noqa: E402
 from neuralcosmos.protocol import ExperimentProtocol, ProtocolViolation  # noqa: E402
@@ -183,9 +184,19 @@ def main() -> int:
 
     # ---- model -----------------------------------------------------------
     target_scaler = TargetScaler.from_config(cfg)
-    model = ERMModel.from_config(exp, n_targets=len(target_scaler.names))
-    print(f"  model      : {exp.get('model', {}).get('type', 'small_cnn')}, "
+    method = str(exp.get("method", {}).get("name", "erm"))
+    if method == "erm" and "method" not in exp:
+        model = ERMModel.from_config(exp, n_targets=len(target_scaler.names))
+    else:
+        # Every DG baseline is the same backbone plus an auxiliary loss, so a
+        # reported difference cannot be an architecture change (section 5).
+        model = build_dg_model(
+            exp, n_targets=len(target_scaler.names), n_domains=len(sources)
+        )
+    print(f"  model      : {exp.get('model', {}).get('type', 'small_cnn')} / {method}, "
           f"{model.n_parameters:,} parameters, latent {model.latent_dim}")
+    if method != "erm":
+        print(f"  method cfg : {exp.get('method', {})}")
 
     workers = train_ds.safe_num_workers(int(train_block.get("num_workers", 2)))
     train_cfg = TrainConfig(
