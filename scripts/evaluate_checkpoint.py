@@ -34,7 +34,7 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 import yaml  # noqa: E402
 
-from neuralcosmos.data.builders import build_dataset  # noqa: E402
+from neuralcosmos.data.builders import build_dataset, suite_id_map  # noqa: E402
 from neuralcosmos.data.manifest import load_data_config  # noqa: E402
 from neuralcosmos.data.splits import load_split_file  # noqa: E402
 from neuralcosmos.data.statistics import load_normalizer  # noqa: E402
@@ -114,8 +114,14 @@ def main() -> int:
     if method == "erm" and "method" not in exp:
         model = ERMModel.from_config(exp, n_targets=len(target_scaler.names))
     else:
+        # Global suite ids are NOT 0..n-1: they index every suite in the data
+        # config, sealed target included. The model needs them to remap.
+        ids = suite_id_map(cfg)
         model = build_dg_model(
-            exp, n_targets=len(target_scaler.names), n_domains=len(sources)
+            exp,
+            n_targets=len(target_scaler.names),
+            n_domains=len(sources),
+            domain_ids=[ids[s] for s in sources],
         )
     state = torch.load(ckpt_path, map_location=device, weights_only=False)
     model.load_state_dict(state["model_state"])

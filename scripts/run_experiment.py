@@ -31,7 +31,7 @@ if str(_SRC) not in sys.path:
 import numpy as np  # noqa: E402
 import yaml  # noqa: E402
 
-from neuralcosmos.data.builders import build_dataset  # noqa: E402
+from neuralcosmos.data.builders import build_dataset, suite_id_map  # noqa: E402
 from neuralcosmos.data.manifest import load_data_config  # noqa: E402
 from neuralcosmos.data.splits import load_split_file  # noqa: E402
 from neuralcosmos.data.statistics import load_normalizer  # noqa: E402
@@ -190,8 +190,14 @@ def main() -> int:
     else:
         # Every DG baseline is the same backbone plus an auxiliary loss, so a
         # reported difference cannot be an architecture change (section 5).
+        # Global suite ids are NOT 0..n-1: they index every suite in the data
+        # config, sealed target included. The model needs them to remap.
+        ids = suite_id_map(cfg)
         model = build_dg_model(
-            exp, n_targets=len(target_scaler.names), n_domains=len(sources)
+            exp,
+            n_targets=len(target_scaler.names),
+            n_domains=len(sources),
+            domain_ids=[ids[s] for s in sources],
         )
     print(f"  model      : {exp.get('model', {}).get('type', 'small_cnn')} / {method}, "
           f"{model.n_parameters:,} parameters, latent {model.latent_dim}")

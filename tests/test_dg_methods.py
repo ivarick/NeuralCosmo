@@ -266,3 +266,50 @@ def test_build_from_config_selects_the_method():
 def test_unknown_method_is_rejected():
     with pytest.raises(ValueError, match="unknown method"):
         DGModel(_base(), method="not_a_method")
+
+
+# --------------------------------------------------------------------------
+# Global vs local domain ids
+# --------------------------------------------------------------------------
+
+
+def test_non_contiguous_global_suite_ids_are_remapped():
+    """The real configuration, which crashed before this was handled.
+
+    suite_id is a global index over sorted config suites, so with Astrid=0,
+    IllustrisTNG=1 and SIMBA=2, training on TNG+SIMBA yields labels {1, 2}. A
+    two-class head cannot accept label 2, and cross_entropy fails inside a CUDA
+    kernel with an assertion that names neither the cause nor the fix.
+    """
+    model = DGModel(_base(), method="dann", n_domains=2, domain_ids=[1, 2])
+    x = torch.randn(4, 1, 32, 32)
+    d = torch.tensor([1, 1, 2, 2])           # global ids, not 0..n-1
+
+    _, _, aux = model.forward_train(x, d, progress=1.0)
+    assert torch.isfinite(aux["domain"])
+
+
+def test_remapping_preserves_group_structure():
+    model = DGModel(_base(), method="dann", n_domains=2, domain_ids=[1, 2])
+    local = model._to_local_domains(torch.tensor([1, 2, 1, 2]))
+    assert local.tolist() == [0, 1, 0, 1]
+
+
+def test_undeclared_suite_id_raises_clearly():
+    """Better a named error than a CUDA assertion from inside a loss kernel."""
+    model = DGModel(_base(), method="dann", n_domains=2, domain_ids=[1, 2])
+    with pytest.raises(ValueError, match="outside the declared domains"):
+        model._to_local_domains(torch.tensor([1, 2, 5]))
+
+
+def test_identity_mapping_when_no_domain_ids_given():
+    model = DGModel(_base(), method="dann", n_domains=2)
+    d = torch.tensor([0, 1, 0, 1])
+    assert model._to_local_domains(d).tolist() == d.tolist()
+
+
+def test_domain_accuracy_uses_remapped_labels():
+    model = DGModel(_base(), method="dann", n_domains=2, domain_ids=[1, 2])
+    z = torch.randn(6, 16)
+    acc = model.domain_accuracy(z, torch.tensor([1, 1, 1, 2, 2, 2]))
+    assert 0.0 <= acc <= 1.0

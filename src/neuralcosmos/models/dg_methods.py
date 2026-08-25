@@ -17,7 +17,7 @@ DA-GNN (MMD) are published on CAMELS already.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 import torch
 import torch.nn as nn
@@ -31,6 +31,21 @@ from .heads import DomainHead
 __all__ = ["METHODS", "DGModel", "build_dg_model"]
 
 METHODS = ("erm", "dann", "coral", "mmd", "miest_like")
+
+
+def _build_domain_lut(domain_ids: Sequence[int] | None) -> torch.Tensor:
+    """Lookup table mapping global suite ids onto contiguous local classes.
+
+    An empty tensor means "identity": the caller did not declare which global
+    ids are in play, so the labels are used as given.
+    """
+    if not domain_ids:
+        return torch.zeros(0, dtype=torch.long)
+    ids = sorted(int(d) for d in domain_ids)
+    lut = torch.full((max(ids) + 1,), -1, dtype=torch.long)
+    for local, global_id in enumerate(ids):
+        lut[global_id] = local
+    return lut
 
 
 def _split_by_domain(z: torch.Tensor, domains: torch.Tensor) -> list[torch.Tensor]:
@@ -78,10 +93,19 @@ class DGModel(nn.Module):
         adversarial_weight: float = 1.0,
         grl_gamma: float = 10.0,
         bottleneck_weight: float = 0.0,
+        domain_ids: Sequence[int] | None = None,
     ) -> None:
         super().__init__()
         if method not in METHODS:
             raise ValueError(f"unknown method {method!r}; expected one of {METHODS}")
+
+        # ``suite_id`` is a GLOBAL index over every suite in the data config,
+        # assigned in sorted order: Astrid=0, IllustrisTNG=1, SIMBA=2. Training
+        # on IllustrisTNG+SIMBA therefore yields labels {1, 2}, which a
+        # two-class head cannot accept -- cross_entropy fails inside a CUDA
+        # kernel with an assertion naming neither the cause nor the fix.
+        # Remap the global ids onto contiguous local classes 0..n-1.
+        self.register_buffer("_domain_lut", _build_domain_lut(domain_ids), persistent=False)
 
         self.base = base
         self.method = method
@@ -122,6 +146,7 @@ class DGModel(nn.Module):
             aux["align"] = self.alignment_weight * _pairwise_alignment(z, domains, mmd_rbf_loss)
 
         elif self.method in ("dann", "miest_like"):
+            domains = self._to_local_domains(domains)
             # The reversal strength is ramped: at initialisation the domain head
             # is random, so reversing its gradient at full strength injects pure
             # noise into the encoder before any domain signal exists to remove.
@@ -140,21 +165,49 @@ class DGModel(nn.Module):
 
         return pred, z, aux
 
+    def _to_local_domains(self, domains: torch.Tensor) -> torch.Tensor:
+        """Map global suite ids to contiguous classes the domain head accepts."""
+        if self._domain_lut.numel() == 0:
+            return domains
+        if int(domains.max()) >= self._domain_lut.numel():
+            raise ValueError(
+                f"suite id {int(domains.max())} is outside the declared domains; "
+                f"pass domain_ids covering every suite present in the batch."
+            )
+        local = self._domain_lut.to(domains.device)[domains]
+        if bool((local < 0).any()):
+            missing = sorted({int(d) for d, m in zip(domains.tolist(), (local < 0).tolist()) if m})
+            raise ValueError(
+                f"batch contains undeclared suite ids {missing}; the domain head "
+                f"was built for a different set of source suites."
+            )
+        return local
+
     @torch.no_grad()
     def domain_accuracy(self, z: torch.Tensor, domains: torch.Tensor) -> float:
         """Training-time diagnostic: how well the adversary is doing."""
         if self.domain_head is None:
             return float("nan")
         pred = self.domain_head(z).argmax(dim=1)
-        return float((pred == domains).float().mean().item())
+        return float((pred == self._to_local_domains(domains)).float().mean().item())
 
     @property
     def n_parameters(self) -> int:
         return sum(p.numel() for p in self.parameters())
 
 
-def build_dg_model(cfg: dict[str, Any], n_targets: int = 2, n_domains: int = 2) -> DGModel:
-    """Construct a DG baseline from an experiment config."""
+def build_dg_model(
+    cfg: dict[str, Any],
+    n_targets: int = 2,
+    n_domains: int = 2,
+    domain_ids: Sequence[int] | None = None,
+) -> DGModel:
+    """Construct a DG baseline from an experiment config.
+
+    ``domain_ids`` are the GLOBAL suite ids of the source suites, which are not
+    generally 0..n-1: they index every suite in the data config, sealed target
+    included. Passing them lets the model remap onto the classes its head has.
+    """
     method_cfg = cfg.get("method", {})
     method = str(method_cfg.get("name", "erm"))
     base = ERMModel.from_config(cfg, n_targets=n_targets)
@@ -162,6 +215,7 @@ def build_dg_model(cfg: dict[str, Any], n_targets: int = 2, n_domains: int = 2) 
         base=base,
         method=method,
         n_domains=n_domains,
+        domain_ids=domain_ids,
         alignment_weight=float(method_cfg.get("alignment_weight", 1.0)),
         adversarial_weight=float(method_cfg.get("adversarial_weight", 1.0)),
         grl_gamma=float(method_cfg.get("grl_gamma", 10.0)),
