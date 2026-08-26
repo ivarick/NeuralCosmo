@@ -84,6 +84,16 @@ def main() -> int:
     ap.add_argument("--epochs", type=int, default=None, help="override for a quick check")
     ap.add_argument("--max-simulations", type=int, default=None)
     ap.add_argument("--no-ram", action="store_true", help="stream from disk instead of RAM")
+    ap.add_argument(
+        "--num-workers",
+        type=int,
+        default=None,
+        help=(
+            "override DataLoader workers. Each spawned worker imports torch and "
+            "costs 1-2 GB of Windows commit, so 0 is the right choice when commit "
+            "rather than throughput is the binding constraint."
+        ),
+    )
     ap.add_argument("--output-root", default="outputs/runs")
     ap.add_argument("--force", action="store_true", help="overwrite an existing run directory")
     args = ap.parse_args()
@@ -204,7 +214,12 @@ def main() -> int:
     if method != "erm":
         print(f"  method cfg : {exp.get('method', {})}")
 
-    workers = train_ds.safe_num_workers(int(train_block.get("num_workers", 2)))
+    requested_workers = (
+        args.num_workers
+        if args.num_workers is not None
+        else int(train_block.get("num_workers", 2))
+    )
+    workers = train_ds.safe_num_workers(requested_workers)
     train_cfg = TrainConfig(
         epochs=args.epochs if args.epochs is not None else int(train_block.get("epochs", 60)),
         batch_size=int(train_block.get("batch_size", 32)),
@@ -217,7 +232,7 @@ def main() -> int:
         warmup_epochs=int(train_block.get("warmup_epochs", 2)),
         seed=seed,
     )
-    if workers == 0 and int(train_block.get("num_workers", 2)) > 0:
+    if workers == 0 and requested_workers > 0:
         print("  workers    : forced to 0 (RAM-backed dataset)")
     print()
 

@@ -122,6 +122,21 @@ class DGModel(nn.Module):
 
     # -- inference ---------------------------------------------------------
 
+    @property
+    def backbone(self) -> nn.Module:
+        """Expose the encoder directly.
+
+        Everything that probes a representation -- section 37's domain probe,
+        section 38's target probe, section 39's latent geometry -- reaches for
+        ``model.backbone``. Without this a DG model is not a drop-in for an ERM
+        model and every diagnostic needs a special case.
+        """
+        return self.base.backbone
+
+    @property
+    def regressor(self) -> nn.Module:
+        return self.base.regressor
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.base(x)
 
