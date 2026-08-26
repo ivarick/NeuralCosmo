@@ -1,0 +1,195 @@
+{
+  "split": "test",
+  "replicates": 2000,
+  "confidence": 0.95,
+  "runs": {
+    "E01_tng_id_seed00": {
+      "IllustrisTNG": {
+        "omega_m_mae": {
+          "point": 0.008212940184772016,
+          "ci_lower": 0.007328120112580557,
+          "ci_upper": 0.009214108477632205,
+          "bootstrap_mean": 0.008229700842743614,
+          "bootstrap_std": 0.00047880698135050533,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "omega_m_rmse": {
+          "point": 0.011050902599801194,
+          "ci_lower": 0.009813375105093237,
+          "ci_upper": 0.012338529486389981,
+          "bootstrap_mean": 0.011054532758172213,
+          "bootstrap_std": 0.000632110314118583,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "sigma8_mae": {
+          "point": 0.013689836743474008,
+          "ci_lower": 0.012523503062576057,
+          "ci_upper": 0.014823599929536383,
+          "bootstrap_mean": 0.01369144627745996,
+          "bootstrap_std": 0.0005895407988252668,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "sigma8_rmse": {
+          "point": 0.017854938048271186,
+          "ci_lower": 0.016388806758361015,
+          "ci_upper": 0.019241781920116885,
+          "bootstrap_mean": 0.01783901697745177,
+          "bootstrap_std": 0.0007317490066324935,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        }
+      },
+      "SIMBA": {
+        "omega_m_mae": {
+          "point": 0.01822565927331646,
+          "ci_lower": 0.013529292524332801,
+          "ci_upper": 0.023744281071573496,
+          "bootstrap_mean": 0.018195662139208365,
+          "bootstrap_std": 0.0026591493293020023,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "omega_m_rmse": {
+          "point": 0.027948532634861738,
+          "ci_lower": 0.020062877391109943,
+          "ci_upper": 0.035518223206300784,
+          "bootstrap_mean": 0.02764748758495554,
+          "bootstrap_std": 0.0040538719693710215,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "sigma8_mae": {
+          "point": 0.021453545814162738,
+          "ci_lower": 0.017747666658386587,
+          "ci_upper": 0.026212234362120116,
+          "bootstrap_mean": 0.02148733852645193,
+          "bootstrap_std": 0.002173313871666313,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "sigma8_rmse": {
+          "point": 0.030170066413857045,
+          "ci_lower": 0.0240657475547157,
+          "ci_upper": 0.03741404654405227,
+          "bootstrap_mean": 0.03002045273978899,
+          "bootstrap_std": 0.003610691091855995,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        }
+      }
+    },
+    "E02_simba_id_seed00": {
+      "IllustrisTNG": {
+        "omega_m_mae": {
+          "point": 0.010625038826962311,
+          "ci_lower": 0.009922840787569682,
+          "ci_upper": 0.011447908185819783,
+          "bootstrap_mean": 0.010633366108395157,
+          "bootstrap_std": 0.00038899566170897673,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "omega_m_rmse": {
+          "point": 0.013312069807858404,
+          "ci_lower": 0.012471961975218715,
+          "ci_upper": 0.014231025041361487,
+          "bootstrap_mean": 0.013313117365935566,
+          "bootstrap_std": 0.0004549232800878677,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "sigma8_mae": {
+          "point": 0.01488628546893597,
+          "ci_lower": 0.013067843607167404,
+          "ci_upper": 0.016758425872574253,
+          "bootstrap_mean": 0.014852255350450183,
+          "bootstrap_std": 0.0009355525351286484,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "sigma8_rmse": {
+          "point": 0.019652951320197662,
+          "ci_lower": 0.017157372083272806,
+          "ci_upper": 0.02225405705258913,
+          "bootstrap_mean": 0.019566853871406234,
+          "bootstrap_std": 0.0012926983578262965,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        }
+      },
+      "SIMBA": {
+        "omega_m_mae": {
+          "point": 0.009069734588513772,
+          "ci_lower": 0.008000026456080379,
+          "ci_upper": 0.010276410872582345,
+          "bootstrap_mean": 0.00906837380772854,
+          "bootstrap_std": 0.0005656208972711416,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "omega_m_rmse": {
+          "point": 0.01203105549084992,
+          "ci_lower": 0.01061495966641047,
+          "ci_upper": 0.013435083379876731,
+          "bootstrap_mean": 0.01201621022405914,
+          "bootstrap_std": 0.0007052526821164191,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "sigma8_mae": {
+          "point": 0.01609380907785768,
+          "ci_lower": 0.01465335240816853,
+          "ci_upper": 0.01756911543229439,
+          "bootstrap_mean": 0.016080159561008243,
+          "bootstrap_std": 0.0007603976626278067,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        },
+        "sigma8_rmse": {
+          "point": 0.02063686678048088,
+          "ci_lower": 0.018931252282684906,
+          "ci_upper": 0.022302533308841292,
+          "bootstrap_mean": 0.020604695113253153,
+          "bootstrap_std": 0.0008634696082179163,
+          "n_groups": 50,
+          "n_samples": 750,
+          "n_replicates": 2000,
+          "confidence": 0.95
+        }
+      }
+    }
+  }
+}
