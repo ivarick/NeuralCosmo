@@ -1,0 +1,167 @@
+{
+  "E20_erm_multisource_seed00": {
+    "run": "E20_erm_multisource_seed00",
+    "method": "erm",
+    "best_epoch": 19,
+    "selection_score": 0.07297784030783819,
+    "epochs_run": 20,
+    "train_maps": 6000,
+    "seed": 0,
+    "source_test_mae": {
+      "IllustrisTNG": {
+        "omega_m": 0.0162847525810202,
+        "sigma8": 0.02192144870062669
+      },
+      "SIMBA": {
+        "omega_m": 0.017740974097698925,
+        "sigma8": 0.027863427358089637
+      }
+    },
+    "mean_source_mae": {
+      "omega_m": 0.017012863339359564,
+      "sigma8": 0.024892438029358165
+    },
+    "domain_probe": {
+      "chance": 0.5,
+      "linear": 0.601921470342523,
+      "mlp": 0.5676691729323309,
+      "best": 0.601921470342523
+    },
+    "target_probe_r2": {
+      "omega_m": 0.9597002863883972,
+      "sigma8": 0.9040935635566711
+    }
+  },
+  "E21_dann_seed00": {
+    "run": "E21_dann_seed00",
+    "method": "dann",
+    "best_epoch": 19,
+    "selection_score": 0.22954006459808146,
+    "epochs_run": 20,
+    "train_maps": 6000,
+    "seed": 0,
+    "source_test_mae": {
+      "IllustrisTNG": {
+        "omega_m": 0.0775290352707108,
+        "sigma8": 0.07599465928971769
+      },
+      "SIMBA": {
+        "omega_m": 0.06877999547943474,
+        "sigma8": 0.09631766099454836
+      }
+    },
+    "mean_source_mae": {
+      "omega_m": 0.07315451537507277,
+      "sigma8": 0.08615616014213302
+    },
+    "domain_probe": {
+      "chance": 0.5,
+      "linear": 0.610609857978279,
+      "mlp": 0.6560568086883876,
+      "best": 0.6560568086883876
+    },
+    "target_probe_r2": {
+      "omega_m": 0.46703529357910156,
+      "sigma8": 0.27392715215682983
+    }
+  },
+  "E22_coral_seed00": {
+    "run": "E22_coral_seed00",
+    "method": "coral",
+    "best_epoch": 19,
+    "selection_score": 0.07354020822023015,
+    "epochs_run": 20,
+    "train_maps": 6000,
+    "seed": 0,
+    "source_test_mae": {
+      "IllustrisTNG": {
+        "omega_m": 0.01669185791760683,
+        "sigma8": 0.022364067541559535
+      },
+      "SIMBA": {
+        "omega_m": 0.01828262253180146,
+        "sigma8": 0.02808002742699658
+      }
+    },
+    "mean_source_mae": {
+      "omega_m": 0.017487240224704145,
+      "sigma8": 0.02522204748427806
+    },
+    "domain_probe": {
+      "chance": 0.5,
+      "linear": 0.5883876357560568,
+      "mlp": 0.5655806182121972,
+      "best": 0.5883876357560568
+    },
+    "target_probe_r2": {
+      "omega_m": 0.957413375377655,
+      "sigma8": 0.9024712443351746
+    }
+  },
+  "E23_mmd_seed00": {
+    "run": "E23_mmd_seed00",
+    "method": "mmd",
+    "best_epoch": 19,
+    "selection_score": 0.24146676439395953,
+    "epochs_run": 20,
+    "train_maps": 6000,
+    "seed": 0,
+    "source_test_mae": {
+      "IllustrisTNG": {
+        "omega_m": 0.07790162787884473,
+        "sigma8": 0.0921708420842886
+      },
+      "SIMBA": {
+        "omega_m": 0.075050780163457,
+        "sigma8": 0.1001650369437722
+      }
+    },
+    "mean_source_mae": {
+      "omega_m": 0.07647620402115086,
+      "sigma8": 0.09616793951403041
+    },
+    "domain_probe": {
+      "chance": 0.5,
+      "linear": 0.48955722639933164,
+      "mlp": 0.5697577276524646,
+      "best": 0.5697577276524646
+    },
+    "target_probe_r2": {
+      "omega_m": 0.42906272411346436,
+      "sigma8": 0.20732355117797852
+    }
+  },
+  "E24_miest_like_seed00": {
+    "run": "E24_miest_like_seed00",
+    "method": "miest_like",
+    "best_epoch": 12,
+    "selection_score": 0.22438643571906297,
+    "epochs_run": 20,
+    "train_maps": 6000,
+    "seed": 0,
+    "source_test_mae": {
+      "IllustrisTNG": {
+        "omega_m": 0.07926853259851536,
+        "sigma8": 0.08162081682781379
+      },
+      "SIMBA": {
+        "omega_m": 0.07026160103107493,
+        "sigma8": 0.0967683717521218
+      }
+    },
+    "mean_source_mae": {
+      "omega_m": 0.07476506681479514,
+      "sigma8": 0.08919459428996779
+    },
+    "domain_probe": {
+      "chance": 0.5,
+      "linear": 0.612781954887218,
+      "mlp": 0.6203842940685046,
+      "best": 0.6203842940685046
+    },
+    "target_probe_r2": {
+      "omega_m": 0.48864471912384033,
+      "sigma8": 0.32719194889068604
+    }
+  }
+}
