@@ -74,6 +74,37 @@ def synthetic_archive(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def synthetic_paired_archive(tmp_path: Path) -> Path:
+    """An archive with matched hydro and N-body maps per suite.
+
+    The N-body map of a simulation shares its cosmology and its coarse
+    structure with the hydro map but is a smoothed variant, standing in for a
+    gravity-only run that lacks small-scale baryonic detail. Crucially, map i of
+    the N-body file corresponds to map i of the hydro file, which is the
+    correspondence the paired dataset asserts.
+    """
+    root = tmp_path / "paired"
+    root.mkdir()
+    for i, suite in enumerate(SUITES):
+        params = _make_params(N_SIMS, seed=100 + i)
+        hydro = _make_maps(params, MAPS_PER_SIM, MAP_PIXELS, seed=200 + i)
+
+        # N-body counterpart: same per-simulation amplitude, a smoothed field,
+        # index-aligned with hydro.
+        rng = np.random.default_rng(300 + i)
+        nbody = np.empty_like(hydro)
+        for m in range(hydro.shape[0]):
+            base = hydro[m].astype(np.float64)
+            smoothed = 0.5 * base + 0.5 * base.mean()
+            nbody[m] = (smoothed * rng.lognormal(0.0, 0.05, size=base.shape)).astype(np.float32)
+
+        np.save(root / f"Maps_Mtot_{suite}_LH_z=0.00.npy", hydro)
+        np.save(root / f"Maps_Mtot_{suite}_Nbody_LH_z=0.00.npy", nbody)
+        np.savetxt(root / f"{suite} LH parameters.txt", params, fmt="%.5f")
+    return root
+
+
+@pytest.fixture
 def synthetic_config(tmp_path: Path, synthetic_archive: Path) -> Path:
     """A data config matching the synthetic archive."""
     n_maps = N_SIMS * MAPS_PER_SIM

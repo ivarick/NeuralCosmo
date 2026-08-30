@@ -1,0 +1,10 @@
+{
+  "suites": {
+    "IllustrisTNG": {
+      "ok": false,
+      "error": "nbody file missing",
+      "expected": "E:\\universeinfrencedata\\Maps_Mtot_IllustrisTNG_Nbody_LH_z=0.00.npy"
+    }
+  },
+  "ok": false
+}

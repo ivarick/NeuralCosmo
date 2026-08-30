@@ -39,6 +39,7 @@ __all__ = [
     "SuiteSource",
     "CAMELSMapDataset",
     "dihedral_transform",
+    "load_and_transform_map",
 ]
 
 
@@ -143,6 +144,44 @@ class SuiteSource:
         state["_handle"] = None
         state["_pid"] = None
         return state
+
+
+def load_and_transform_map(
+    source: SuiteSource,
+    map_id: int,
+    log_transform: bool = True,
+    normalizer: "LogNormalizer | None" = None,
+) -> np.ndarray:
+    """Load one map and apply log + normalization, without augmentation.
+
+    Shared by the single-map and paired datasets so the two cannot diverge in
+    how a map is turned into a model input. Augmentation is deliberately NOT
+    applied here: the paired dataset must apply the SAME dihedral element to
+    both views of a pair, which it can only do by owning the transform itself.
+    """
+    raw = source.maps()[map_id]
+
+    if source.is_cached:
+        # Already log10, stored as uint16 codes. Decoding is a multiply-add.
+        img = source.quant_spec.decode(np.asarray(raw), dtype=np.float32)
+    else:
+        img = np.array(raw, dtype=np.float32)
+        if log_transform:
+            # Positivity was verified across the whole archive by
+            # validate_data.py (section 20.1), so no epsilon is added here. A
+            # non-positive value would produce -inf and is caught below rather
+            # than silently repaired.
+            img = np.log10(img, dtype=np.float32)
+            if not np.isfinite(img).all():
+                raise ValueError(
+                    f"Non-finite value after log10 in {source.suite} map {map_id}. "
+                    f"Re-run scripts/validate_data.py: the archive is not strictly "
+                    f"positive."
+                )
+
+    if normalizer is not None:
+        img = normalizer.apply(img).astype(np.float32, copy=False)
+    return img
 
 
 class CAMELSMapDataset:
@@ -271,28 +310,9 @@ class CAMELSMapDataset:
         map_id = int(source.map_indices[local])
         sim_id = map_id // source.maps_per_simulation
 
-        raw = source.maps()[map_id]
-
-        if source.is_cached:
-            # Already log10, stored as uint16 codes. Decoding is a multiply-add.
-            img = source.quant_spec.decode(np.asarray(raw), dtype=np.float32)
-        else:
-            img = np.array(raw, dtype=np.float32)
-            if self.log_transform:
-                # Positivity was verified across the whole archive by
-                # validate_data.py (section 20.1), so no epsilon is added here.
-                # A non-positive value would produce -inf and is caught below
-                # rather than silently repaired.
-                img = np.log10(img, dtype=np.float32)
-                if not np.isfinite(img).all():
-                    raise ValueError(
-                        f"Non-finite value after log10 in {source.suite} map {map_id}. "
-                        f"Re-run scripts/validate_data.py: the archive is not "
-                        f"strictly positive."
-                    )
-
-        if self.normalizer is not None:
-            img = self.normalizer.apply(img).astype(np.float32, copy=False)
+        img = load_and_transform_map(
+            source, map_id, log_transform=self.log_transform, normalizer=self.normalizer
+        )
 
         if self.augment:
             img = dihedral_transform(img, int(self._rng_for_worker().integers(0, 8)))
