@@ -191,15 +191,28 @@ class Trainer:
         total, n = 0.0, 0
         aux_totals: dict[str, float] = {}
 
-        is_dg = hasattr(self.model, "forward_train")
+        is_paired = getattr(self.model, "is_paired", False)
+        is_dg = (not is_paired) and hasattr(self.model, "forward_train")
 
         for batch in loader:
-            x = batch["image"].to(self.device, non_blocking=True)
             y = batch["target"].to(self.device, non_blocking=True)
 
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=self.device.type, enabled=use_amp):
-                if is_dg:
+                if is_paired:
+                    # Paired batch: hydro + N-body views. The hydro regression
+                    # is the task loss; everything the paired method adds comes
+                    # back pre-weighted in aux (sections 44-48).
+                    x_h = batch["hydro_image"].to(self.device, non_blocking=True)
+                    x_n = batch["nbody_image"].to(self.device, non_blocking=True)
+                    pred, aux = self.model.forward_pair(x_h, x_n, y)
+                    task_loss = nn.functional.mse_loss(pred, y)
+                    loss = task_loss
+                    for name, value in aux.items():
+                        loss = loss + value
+                    bs = x_h.shape[0]
+                elif is_dg:
+                    x = batch["image"].to(self.device, non_blocking=True)
                     domains = batch["suite_id"].to(self.device, non_blocking=True)
                     pred, _, aux = self.model.forward_train(x, domains, progress=progress)
                     task_loss = nn.functional.mse_loss(pred, y)
@@ -208,10 +221,13 @@ class Trainer:
                         if name.startswith("_"):      # diagnostics, not losses
                             continue
                         loss = loss + value
+                    bs = x.shape[0]
                 else:
+                    x = batch["image"].to(self.device, non_blocking=True)
                     aux = {}
                     task_loss = nn.functional.mse_loss(self.model(x), y)
                     loss = task_loss
+                    bs = x.shape[0]
 
             scaler.scale(loss).backward()
             if self.cfg.grad_clip:
@@ -220,7 +236,6 @@ class Trainer:
             scaler.step(optimizer)
             scaler.update()
 
-            bs = x.shape[0]
             total += task_loss.item() * bs
             n += bs
             for name, value in aux.items():

@@ -1,0 +1,67 @@
+# ---------------------------------------------------------------------------
+# E31_ppirl_pair - M2: correct paired alignment
+# Plan reference: sections 45, 46, 48, 49.
+#
+# The proposed method. Pair-consistency plus VICReg variance/covariance guards on correctly matched pairs. This is what must beat both E30 (unpaired) and E32 (shuffled), or Kill 4 applies.
+#
+# Trains on paired hydro/N-body maps of the SOURCE suites; validates on
+# hydro-only source maps (the model predicts cosmology from one map). Astrid is
+# the sealed target and appears nowhere. Requires the source N-body files
+# (Phase 7); run_experiment exits with a clear MISSING DATA message until then.
+# ---------------------------------------------------------------------------
+
+experiment:
+  id: E31_ppirl_pair
+  seed: 0
+  notes: "M2: correct paired alignment"
+
+data:
+  config: configs/data/mtot.yaml
+  split_file: configs/splits/split_v1.json
+  normalizer: configs/normalizers/norm_IllustrisTNG-SIMBA_v1.json
+  source_suites:
+    - IllustrisTNG
+    - SIMBA
+  target_suites:
+    - Astrid
+  max_simulations: null
+  augment: false
+  shuffle_pairs: false
+
+protocol:
+  name: dg_strict
+  use_target_for_training: false
+  use_target_for_validation: false
+  use_target_statistics: false
+
+method:
+  name: ppirl
+  projection_dim: 128
+  use_projection: true
+  consistency: mse
+  nbody_reg_weight: 0.0
+  pair_weight: 25.0
+  var_weight: 25.0
+  cov_weight: 1.0
+
+model:
+  type: small_cnn
+  latent_dim: 256
+  width: 32
+  depth: 5
+  head_hidden: 128
+
+training:
+  epochs: 60
+  batch_size: 32
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  num_workers: 2
+  amp: true
+  grad_clip: 1.0
+  early_stopping_patience: 15
+  warmup_epochs: 2
+
+evaluation:
+  splits: [val, test]
+  include_targets: false

@@ -162,6 +162,16 @@ def main() -> int:
 
     seed_everything(seed)
 
+    method = str(exp.get("method", {}).get("name", "erm"))
+    is_paired = method == "ppirl"
+    # A paired run trains on matched hydro/N-body pairs but validates on
+    # hydro-only maps: the model predicts cosmology from a single map, so
+    # validation, checkpoint selection and every downstream probe are unchanged.
+    # The RAM cache is used for the (hydro) validation and, when not paired, for
+    # training; the paired training set streams from disk for now.
+    if is_paired:
+        use_ram = False
+
     if use_ram:
         print("  loading maps into RAM (one-off quantisation pass)")
     t0 = time.time()
@@ -171,18 +181,44 @@ def main() -> int:
         progress=_LoadProgress(enabled=use_ram),
     )
     try:
-        train_ds = build_dataset(
-            suites=sources, split="train", role="train",
-            augment=bool(data_block.get("augment", False)), augment_seed=seed,
-            max_simulations=max_sims, **common,
-        )
-        val_datasets = {
-            s: build_dataset(suites=[s], split="val", role="val", **common)
-            for s in sources
-        }
+        if is_paired:
+            from neuralcosmos.data.builders import build_paired_dataset
+
+            print(f"  paired training on {sources} (hydro + N-body)"
+                  + ("  [SHUFFLED control]" if data_block.get("shuffle_pairs") else ""))
+            train_ds = build_paired_dataset(
+                cfg=cfg, data_root=data_root, split_file=split_file,
+                suites=sources, split="train", hydro_normalizer=normalizer,
+                protocol=protocol, role="train",
+                augment=bool(data_block.get("augment", False)), augment_seed=seed,
+                max_simulations=max_sims,
+                shuffle_pairs=bool(data_block.get("shuffle_pairs", False)),
+                shuffle_seed=seed,
+            )
+            val_datasets = {
+                s: build_dataset(
+                    cfg=cfg, data_root=data_root, split_file=split_file,
+                    normalizer=normalizer, protocol=protocol,
+                    suites=[s], split="val", role="val",
+                )
+                for s in sources
+            }
+        else:
+            train_ds = build_dataset(
+                suites=sources, split="train", role="train",
+                augment=bool(data_block.get("augment", False)), augment_seed=seed,
+                max_simulations=max_sims, **common,
+            )
+            val_datasets = {
+                s: build_dataset(suites=[s], split="val", role="val", **common)
+                for s in sources
+            }
     except ProtocolViolation as exc:
         print(f"PROTOCOL VIOLATION\n{exc}", file=sys.stderr)
         return 4
+    except FileNotFoundError as exc:
+        print(f"MISSING DATA\n{exc}", file=sys.stderr)
+        return 2
     load_seconds = time.time() - t0
 
     if use_ram:
@@ -194,9 +230,12 @@ def main() -> int:
 
     # ---- model -----------------------------------------------------------
     target_scaler = TargetScaler.from_config(cfg)
-    method = str(exp.get("method", {}).get("name", "erm"))
     if method == "erm" and "method" not in exp:
         model = ERMModel.from_config(exp, n_targets=len(target_scaler.names))
+    elif is_paired:
+        from neuralcosmos.models.ppirl import build_ppirl_model
+
+        model = build_ppirl_model(exp, n_targets=len(target_scaler.names))
     else:
         # Every DG baseline is the same backbone plus an auxiliary loss, so a
         # reported difference cannot be an architecture change (section 5).

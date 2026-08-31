@@ -17,6 +17,7 @@ from ..protocol import ExperimentProtocol
 from .cache import QuantSpec, load_into_ram, open_cache
 from .dataset import CAMELSMapDataset, LogNormalizer, SuiteSource
 from .manifest import load_data_config, resolve_suite_files
+from .paired_dataset import PairedMapDataset, PairedSuiteSource
 from .splits import SplitFile, maps_for_simulations
 from .targets import TargetScaler
 
@@ -26,7 +27,18 @@ __all__ = [
     "build_sources",
     "build_dataset",
     "stats_sources",
+    "nbody_map_file",
+    "build_paired_dataset",
 ]
+
+
+def nbody_map_file(hydro_map_file: str) -> str:
+    """Derive the N-body map filename from the hydro one.
+
+    ``Maps_Mtot_IllustrisTNG_LH_z=0.00.npy``
+        -> ``Maps_Mtot_IllustrisTNG_Nbody_LH_z=0.00.npy``
+    """
+    return hydro_map_file.replace("_LH_", "_Nbody_LH_")
 
 
 def suite_id_map(cfg: dict[str, Any]) -> dict[str, int]:
@@ -226,3 +238,86 @@ def make_provenance(
     if extra:
         parts.append(extra)
     return "|".join(parts)
+
+
+def build_paired_dataset(
+    cfg: dict[str, Any],
+    data_root: Path,
+    split_file: SplitFile,
+    suites: Sequence[str],
+    split: str,
+    hydro_normalizer: LogNormalizer | None,
+    nbody_normalizer: LogNormalizer | None = None,
+    protocol: ExperimentProtocol | None = None,
+    role: str = "train",
+    log_transform: bool = True,
+    augment: bool = False,
+    augment_seed: int = 0,
+    max_simulations: int | None = None,
+    shuffle_pairs: bool = False,
+    shuffle_seed: int = 0,
+    verify_pairs: bool = True,
+) -> PairedMapDataset:
+    """Assemble a :class:`PairedMapDataset` from config, split and N-body files.
+
+    Enforces the same protocol as :func:`build_dataset`: a paired training set
+    made of source suites still cannot include the sealed target, and the
+    normalizer provenance is still checked. ``shuffle_pairs`` selects the
+    section 50 control.
+    """
+    if protocol is not None:
+        if role == "train":
+            protocol.check_training_suites(suites)
+        elif role == "val":
+            protocol.check_validation_suites(suites)
+        else:
+            protocol.check_evaluation_suites(suites)
+        if hydro_normalizer is not None:
+            protocol.check_normalizer(hydro_normalizer.provenance)
+        if nbody_normalizer is not None:
+            protocol.check_normalizer(nbody_normalizer.provenance)
+
+    ids = suite_id_map(cfg)
+    maps_per_sim = int(cfg["maps_per_simulation"])
+    paired_sources: list[PairedSuiteSource] = []
+
+    for suite in suites:
+        sf = resolve_suite_files(cfg, data_root, [suite])[0]
+        nbody_path = data_root / nbody_map_file(cfg["suites"][suite]["map_file"])
+        if not nbody_path.exists():
+            raise FileNotFoundError(
+                f"[{suite}] N-body map file not found: {nbody_path}. "
+                f"Download the source N-body pairs (Phase 7) before paired training."
+            )
+
+        sim_ids = list(split_file.suite(suite).ids(split))
+        if max_simulations is not None:
+            if split != "train":
+                raise ValueError("max_simulations may only truncate the training split")
+            sim_ids = sim_ids[:max_simulations]
+        idx = maps_for_simulations(sim_ids, maps_per_sim)
+        params = load_suite_params(cfg, data_root, suite)
+
+        hydro = SuiteSource(
+            suite=suite, suite_id=ids[suite], map_path=sf.map_path,
+            params=params, map_indices=idx, maps_per_simulation=maps_per_sim,
+        )
+        nbody = SuiteSource(
+            suite=suite, suite_id=ids[suite], map_path=nbody_path,
+            params=params, map_indices=idx, maps_per_simulation=maps_per_sim,
+        )
+        paired_sources.append(PairedSuiteSource(suite=suite, hydro=hydro, nbody=nbody))
+
+    return PairedMapDataset(
+        sources=paired_sources,
+        target_scaler=TargetScaler.from_config(cfg),
+        param_columns=cfg["param_columns"],
+        hydro_normalizer=hydro_normalizer,
+        nbody_normalizer=nbody_normalizer,
+        log_transform=log_transform,
+        augment=augment,
+        augment_seed=augment_seed,
+        shuffle_pairs=shuffle_pairs,
+        shuffle_seed=shuffle_seed,
+        verify_pairs=verify_pairs,
+    )
